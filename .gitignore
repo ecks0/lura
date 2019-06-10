@@ -1,0 +1,4 @@
+__pycache__
+.pytest_cache
+clav.egg-info
+tmp
