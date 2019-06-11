@@ -35,14 +35,12 @@ class AttributesMixin:
     super().__init__()
 
   def __getattr__(self, k):
-    # try:
-    #   return self[k]
-    # except KeyError:
-    #   pass
-    if k not in self:
-      err = f"'{type(self).__name__}' object has no attribute '{k}'"
-      raise AttributeError(err)
-    return self[k]
+    try:
+      return self[k]
+    except KeyError:
+      pass
+    err = f"'{type(self).__name__}' object has no attribute '{k}'"
+    raise AttributeError(err)
 
   def __setattr__(self, k, v):
     self[k] = v
