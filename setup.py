@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 
 install_requires = [
+  'cryptography >= 2.7',
   'Jinja2 >= 2.10',
   'PyYAML >= 3.13',
 ]
