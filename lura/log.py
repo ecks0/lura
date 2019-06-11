@@ -250,3 +250,9 @@ class Logging:
     '''
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).removeHandler(handler)
+
+logs = log.Logging(
+  std_logger = __name__.split('.')[0],
+  std_format = log.Logging.formats.bare[0],
+  std_datefmt = log.Logging.formats.bare[1],
+)

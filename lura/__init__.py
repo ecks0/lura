@@ -1,3 +1,5 @@
+from . import log
+from .log import logs
 from . import attrs
 from . import expander
 from . import format
@@ -5,7 +7,6 @@ from . import hash
 from . import hooks
 from . import io
 from . import iter
-from . import log
 from . import random
 from . import threads
 from . import time
