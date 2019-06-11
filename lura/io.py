@@ -13,7 +13,7 @@ def mkfifo(path):
       return
     raise
 
-def dump(data, path, mode='w', encoding=None):
+def dump(path, data, mode='w', encoding=None):
   with open(path, mode=mode, encoding=encoding) as fd:
     fd.write(data)
     fd.flush()
