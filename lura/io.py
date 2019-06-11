@@ -1,5 +1,6 @@
 import os
 import stat
+from pathlib import Path
 
 def isfifo(path):
   return stat.S_ISFIFO(os.stat(path).st_mode)
@@ -20,3 +21,6 @@ def dump(data, path, mode='w', encoding=None):
 def slurp(path, mode='r', encoding=None):
   with open(path, mode=mode, encoding=encoding) as fd:
     return fd.read()
+
+def touch(path, mode=0o600):
+  Path(path).touch(mode=mode)
