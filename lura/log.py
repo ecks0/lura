@@ -151,10 +151,10 @@ class Logging:
     level = os.environ.get(self.level_envvar, 'DEBUG')
     level = getattr(logging, level)
     append = asbool(os.environ.get(self.append_envvar, '0'))
-    handler = add_file_handler(file, level=level, append=append)
-    handler.set_name(log_envvar)
-    fmt = os.environ.get(log_format_envvar, 'verbose').lower()
-    handler.setFormatter(logging.Formatter(*formats[fmt]))
+    handler = self.add_file_handler(file, level=level, append=append)
+    handler.set_name(self.log_envvar)
+    fmt = os.environ.get(self.format_envvar, 'verbose').lower()
+    handler.setFormatter(logging.Formatter(*self.formats[fmt]))
     self.configured = True
 
   def add_level(self, name, number, short_name=None):
@@ -235,7 +235,7 @@ class Logging:
       handler = logging.StreamHandler(path)
     if level is not None:
       handler.setLevel(level)
-    formatter = logging.Formatter(*formats.std)
+    formatter = logging.Formatter(*self.formats.verbose)
     handler.setFormatter(formatter)
     handler.addFilter(ExtraInfoFilter())
     self.get_logger(logger).addHandler(handler)
