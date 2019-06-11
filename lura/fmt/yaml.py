@@ -1,7 +1,7 @@
 import yaml as yaml_
 from lura.attrs import ottr
-from lura.format import myaml
-from lura.format.base import Format
+from lura.fmt import myaml
+from lura.fmt.base import Format
 from lura.io import dump
 
 class DictLoaderMixin:

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# lura.format.yaml uses this module for its implementation of yaml.dumps().
+# lura.fmt.yaml uses this module for its implementation of yaml.dumps().
 # this module has been modified to:
 #   - quote strings with {{ or }} in them (for ansible support)
 #   - quote a string with " if it contains '

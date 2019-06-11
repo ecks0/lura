@@ -1,6 +1,6 @@
 import json as json_
 from lura.attrs import ottr
-from lura.format.base import Format
+from lura.fmt.base import Format
 from lura.io import dump
 
 class Json(Format):
