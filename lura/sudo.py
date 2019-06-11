@@ -6,8 +6,7 @@ import time
 import threading
 import traceback
 from lura import logs
-from lura.crypto import decrypt
-from lura.io import mkfifo, slurp
+from lura.io import dump, mkfifo, slurp
 from lura.shell import shell_path, shjoin
 from tempfile import TemporaryDirectory
 
@@ -30,6 +29,7 @@ class Sudo:
     self.tls = threading.local()
 
   def _command_argv(self):
+    self.log.debug('_command_argv()')
     return ' '.join((
       shjoin(['touch', self.tls.ok_path]),
       '&& exec',
@@ -37,8 +37,11 @@ class Sudo:
     ))
 
   def _sudo_argv(self):
+    self.log.debug('_sudo_argv()')
     tls = self.tls
-    sudo_argv = f'sudo -A -u {tls.user}'.split()
+    sudo_argv = ['sudo', '-A']
+    if tls.user is not None:
+      sudo_argv += ['-u', tls.user]
     if tls.group is not None:
       sudo_argv += ['-g', tls.group]
     if tls.login:
@@ -47,10 +50,11 @@ class Sudo:
     return sudo_argv
 
   def _askpass_argv(self):
+    self.log.debug('_askpass_argv()')
     return shjoin([
       sys.executable,
       '-m',
-      __name__,
+      'lura.sudo', # FIXME
       'askpass',
       self.tls.fifo_path,
       str(float(self.tls.timeout)),
@@ -60,9 +64,11 @@ class Sudo:
    return os.path.isfile(self.tls.ok_path)
 
   def _make_fifo(self):
+    self.log.debug('_make_fifo()')
     mkfifo(self.tls.fifo_path)
 
   def _open_fifo(self):
+    self.log.debug('_open_fifo()')
     tls = self.tls
     try:
       tls.fifo = os.open(tls.fifo_path, os.O_NONBLOCK | os.O_WRONLY)
@@ -71,6 +77,7 @@ class Sudo:
       return False
 
   def _write_fifo(self, timeout):
+    self.log.debug('_write_fifo()')
     tls = self.tls
     fifo = tls.fifo
     sleep_interval = tls.sleep_interval
@@ -93,6 +100,7 @@ class Sudo:
       time.sleep(sleep_interval)
 
   def _close_fifo(self):
+    self.log.debug('_close_fifo()')
     try:
       os.close(self.tls.fifo)
     except Exception:
@@ -100,12 +108,14 @@ class Sudo:
     self.tls.fifo = None
 
   def _wait_for_sudo(self):
+    self.log.debug('_wait_for_sudo()')
     tls = self.tls
     timeout = tls.timeout
     sleep_interval = tls.sleep_interval
     ok_path = tls.ok_path
     start = time.time()
     elapsed = lambda: time.time() - start
+    self.log.debug('_wait_for_sudo() begin fifo')
     while True:
       if self._open_fifo():
         try:
@@ -114,32 +124,37 @@ class Sudo:
         finally:
           self._close_fifo()
       if self._check_ok():
+        self.log.debug('_wait_for_sudo() check ok 1')
         return
       if timeout < elapsed():
         raise TimeoutExpired(self)
       time.sleep(sleep_interval)
-    while True:
-      if not os.path.isfile(ok_path):
-        if timeout < elapsed():
-          raise TimeoutExpired(self)
-        time.sleep(sleep_interval)
+    self.log.debug('_wait_for_sudo() end fifo')
+    self.log.debug('_wait_for_sudo() await ok')
+    while not self._check_ok():
+      if timeout < elapsed():
+        raise TimeoutExpired(self)
+      time.sleep(sleep_interval)
+    self.log.debug('_wait_for_sudo() check ok 2')
 
   def _make_askpass(self):
-    askpass_path = self.tls.askpass_path
-    with open(askpass_path, 'w') as fd:
-      fd.write(f'#!{self.shell}\nexec {self._askpass_argv()}\n')
-    os.chmod(askpass_path, 0o700)
+    self.log.debug('_make_askpass()')
+    contents = f'#!{self.shell}\nexec {self._askpass_argv()}\n'
+    dump(self.tls.askpass_path, contents)
+    os.chmod(self.tls.askpass_path, 0o700)
 
   def _reset(self):
+    self.log.debug('_reset()')
     tls = self.tls
     try:
       tls.state_dir_context.__exit__(None, None, None)
     except Exception:
-      self.log.exception('Exception while deleting sudo state temp dir')
+      self.log.exception('Exception while deleting state directory')
     for _ in list(tls.__dict__.keys()):
       delattr(tls, _)
 
   def _popen(self):
+    self.log.debug('_popen()')
     tls = self.tls
     self._make_fifo()
     self._make_askpass()
@@ -148,7 +163,11 @@ class Sudo:
       self._sudo_argv(), env=tls.env, stdin=tls.stdin, stdout=tls.stdout,
       stderr=tls.stderr
     )
-    self._wait_for_sudo()
+    try:
+      self._wait_for_sudo()
+    except Exception:
+      process.kill()
+      raise
     return process
 
   def popen(
@@ -166,15 +185,16 @@ class Sudo:
     sleep_interval = None,
   ):
     try:
+      self.log.debug('popen()')
       tls = self.tls
       tls.state_dir_context = TemporaryDirectory()
       tls.state_dir = tls.state_dir_context.__enter__()
       tls.argv = argv
-      tls.env = dict(os.environ) if env is None else env
+      tls.env = {} if env is None else env
       tls.stdin = stdin
       tls.stdout = stdout
       tls.stderr = stderr
-      tls.user = 'root' if user is None else user
+      tls.user = user
       tls.group = group
       tls.login = login
       tls.password = password
@@ -201,6 +221,7 @@ def _cli():
 @click.option('-i', '--login', is_flag=True, help='Run as login shell.')
 @click.argument('argv', nargs=-1)
 def _run(user, group, login, argv):
+  from lura.crypto import decrypt
   from lura.io import touch
   from lura.sudo import popen
   from lura.utils import asbool
