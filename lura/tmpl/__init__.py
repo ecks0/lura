@@ -9,7 +9,7 @@ from .stringtemplate import stringtemplate
 
 from lura.attrs import attr
 
-expanders = attr(
+engines = attr(
   j2 = jinja2,
   jinja2 = jinja2,
 

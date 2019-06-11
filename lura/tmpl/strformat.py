@@ -1,9 +1,8 @@
-from string import Template
-from lura.expander.base import Expander
+from lura.tmpl.base import Expander
 from lura.io import dump
 
-class StringTemplate(Expander):
-  'Expand templates using string.Template().'
+class StrFormat(Expander):
+  'Expand templates using str.format().'
 
   def __init__(self):
     super().__init__()
@@ -17,12 +16,11 @@ class StringTemplate(Expander):
     :returns: The expanded template.
     :rtype: str
     '''
-    return Template(tmpl).substitute(env)
+    return tmpl.format(**env)
 
   def expandf(self, env, tmpl, dst):
     '''
-    Expand a template to a file. File will be written only when the expanded
-    template differs from the existing file's contents, if any.
+    Expand a template to a file.
 
     :param str env: expansion environment
     :param str tmpl: template text
@@ -30,6 +28,6 @@ class StringTemplate(Expander):
     :returns: True if dst file was written
     :rtype bool:
     '''
-    dump(dst, Template(tmpl).substitute(env))
+    dump(dst, tmpl.format(**env))
 
-stringtemplate = StringTemplate()
+strformat = StrFormat()

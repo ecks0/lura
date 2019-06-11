@@ -1,6 +1,6 @@
 import jinja2 as jinja2_
 import os
-from lura.expander.base import Expander
+from lura.tmpl.base import Expander
 from lura.io import dump
 
 class Jinja2(Expander):

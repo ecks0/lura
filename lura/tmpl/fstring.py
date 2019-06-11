@@ -1,8 +1,8 @@
-from lura.expander.base import Expander
+from lura.tmpl.base import Expander
 from lura.io import dump
 
-class StrFormat(Expander):
-  'Expand templates using str.format().'
+class FString(Expander):
+  'Expand templates as f-strings.'
 
   def __init__(self):
     super().__init__()
@@ -16,7 +16,7 @@ class StrFormat(Expander):
     :returns: The expanded template.
     :rtype: str
     '''
-    return tmpl.format(**env)
+    return eval("f'''{}'''".format(tmpl.replace("'''", "\\'\\'\\'")), env)
 
   def expandf(self, env, tmpl, dst):
     '''
@@ -26,8 +26,7 @@ class StrFormat(Expander):
     :param str tmpl: template text
     :param str dst: destination file path
     :returns: True if dst file was written
-    :rtype bool:
     '''
-    dump(dst, tmpl.format(**env))
+    dump(dst, self.expands(env, tmpl))
 
-strformat = StrFormat()
+fstring = FString()
