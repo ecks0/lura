@@ -27,7 +27,7 @@ def set_trace(enabled):
 trace.set_trace = set_trace
 
 def get_trace():
-  return sys.gettrace() == trace, threading._trace_hook == trace
+  return sys.gettrace() == trace
 
 trace.get_trace = get_trace
 
