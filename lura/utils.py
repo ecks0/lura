@@ -1,4 +1,3 @@
-import shlex
 import types
 from lura.attrs import attr
 from collections import MutableMapping, MutableSequence
@@ -81,9 +80,14 @@ def import_object(spec):
   mod, type = spec.rsplit('.', 1)
   return getattr(__import__(mod), type)
 
-def shjoin(argv):
-  'Join a list of command-line arguments using ``shlex.quote()``.'
+class ObjectProxy:
 
-  if isinstance(argv, str):
-    raise ValueError("'argv' cannot be a 'str' instance")
-  return ' '.join(shlex.quote(a) for a in argv)
+  def __init__(self, target):
+    super().__init__()
+    self._proxied_object = target
+
+  def __getattr__(self, name):
+    if hasattr(self._proxied_object, name):
+      return getattr(self._proxied_object, name)
+    err = f"'{type(self).__name__}' object has no attribute '{k}'"
+    raise AttributeError(err)
