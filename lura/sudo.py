@@ -4,9 +4,10 @@ import sys
 import subprocess as subp
 import time
 import threading
+import traceback
 from lura import logs
 from lura.crypto import decrypt
-from lura.io import mkfifo, slurp, touch
+from lura.io import mkfifo, slurp
 from lura.shell import shell_path, shjoin
 from tempfile import TemporaryDirectory
 
@@ -56,7 +57,7 @@ class Sudo:
     ])
 
   def _check_ok(self):
-    return os.path.isfile(self.tls.ok_path)
+   return os.path.isfile(self.tls.ok_path)
 
   def _make_fifo(self):
     mkfifo(self.tls.fifo_path)
@@ -82,11 +83,11 @@ class Sudo:
       try:
         i += os.write(fifo, password[i:])
         if i == end:
-          return True
+          return
       except BlockingIOError:
         pass
       if self._check_ok():
-        return True
+        return
       if timeout < elapsed():
         raise TimeoutExpired(self)
       time.sleep(sleep_interval)
@@ -108,12 +109,12 @@ class Sudo:
     while True:
       if self._open_fifo():
         try:
-          if self._write_fifo(timeout - elapsed()):
-            break
+          self._write_fifo(timeout - elapsed())
+          break
         finally:
           self._close_fifo()
       if self._check_ok():
-        return True
+        return
       if timeout < elapsed():
         raise TimeoutExpired(self)
       time.sleep(sleep_interval)
@@ -140,16 +141,14 @@ class Sudo:
 
   def _popen(self):
     tls = self.tls
-    tls.env['SUDO_ASKPASS'] = tls.askpass_path
     self._make_fifo()
     self._make_askpass()
+    tls.env['SUDO_ASKPASS'] = tls.askpass_path
     process = subp.Popen(
       self._sudo_argv(), env=tls.env, stdin=tls.stdin, stdout=tls.stdout,
       stderr=tls.stderr
     )
-    if not self._wait_for_sudo():
-      process.kill()
-      raise RuntimeError('Timed out waiting for sudo')
+    self._wait_for_sudo()
     return process
 
   def popen(
@@ -171,7 +170,7 @@ class Sudo:
       tls.state_dir_context = TemporaryDirectory()
       tls.state_dir = tls.state_dir_context.__enter__()
       tls.argv = argv
-      tls.env = {} if env is None else env
+      tls.env = dict(os.environ) if env is None else env
       tls.stdin = stdin
       tls.stdout = stdout
       tls.stderr = stderr
@@ -196,22 +195,29 @@ popen = Sudo().popen
 def _cli():
   pass
 
-@_cli.command('sudo')
+@_cli.command('run')
 @click.option('-u', '--user', help='Target user.')
 @click.option('-g', '--group', help='Target group.')
-@click.option('-i', '--login', help="Run target user's shell.")
+@click.option('-i', '--login', is_flag=True, help='Run as login shell.')
 @click.argument('argv', nargs=-1)
-def _sudo(user, group, login, argv):
+def _run(user, group, login, argv):
+  from lura.io import touch
   from lura.sudo import popen
-  file = os.environ['SUDO_FILE']
-  key = os.environ['SUDO_KEY']
-  ok = os.environ.get('SUDO_OK')
-  if ok:
-    del os.environ['SUDO_OK']
-  password = decrypt(slurp(file, 'rb'), key.encode()).decode()
-  #os.unlink(file)
-  del os.environ['SUDO_FILE']
-  del os.environ['SUDO_KEY']
+  from lura.utils import asbool
+  timeout = float(os.environ.get('LURA_SUDO_TIMEOUT', '5.0'))
+  file = os.environ['LURA_SUDO_FILE']
+  key = os.environ['LURA_SUDO_KEY']
+  ok = os.environ.get('LURA_SUDO_OK')
+  keep = asbool(os.environ.get('LURA_SUDO_KEEP', '0'))
+  for _ in (
+    'LURA_SUDO_FILE', 'LURA_SUDO_KEY', 'LURA_SUDO_OK', 'LURA_SUDO_KEEP',
+    'LURA_SUDO_TIMEOUT',
+  ):
+    if _ in os.environ:
+      del os.environ[_]
+  password = decrypt(slurp(file).encode(), key.encode()).decode()
+  if not keep:
+    os.unlink(file)
   process = popen(
     argv,
     user = user,
@@ -221,11 +227,15 @@ def _sudo(user, group, login, argv):
     stdin = sys.stdin,
     stdout = sys.stdout,
     stderr = sys.stderr,
+    timeout = timeout,
   )
-  if ok:
-    touch(ok)
-  code = process.wait()
-  sys.exit(code)
+  try:
+    if ok:
+      touch(ok)
+    code = process.wait()
+    sys.exit(code)
+  finally:
+    process.kill()
 
 @_cli.command('askpass')
 @click.argument('fifo')
@@ -245,4 +255,5 @@ def _askpass(fifo, timeout):
   os._exit(0)
 
 if __name__ == '__main__':
+  from lura.sudo import _cli
   _cli()
