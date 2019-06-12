@@ -65,7 +65,7 @@ class Logging:
 
     # More verbose.
     debug = (
-      '%(run_time)9.3f %(short_name)20s %(short_levelname)s %(message)s',
+      '%(run_time)-12.3f %(short_name)20s %(short_levelname)s %(message)s',
       '%Y-%m-%d %H:%M:%S',
     ),
 
@@ -166,10 +166,12 @@ class Logging:
     setattr(type(self), name, number)
     setattr(logging.Logger, name.lower(), log_custom)
     if short_name is not None:
-      ExtraInfoFilter.map_short_level[number] = short_name
+      ExtraInfoFilter.map_short_level[name] = short_name
 
-  def get_logger(self, obj):
-    if isinstance(obj, str):
+  def get_logger(self, obj=None):
+    if obj is None:
+      name = self.std_logger
+    elif isinstance(obj, str):
       name = obj
     elif isinstance(obj, type):
       name = f'{obj.__module__}.{obj.__name__}'
@@ -211,6 +213,8 @@ class Logging:
       level = getattr(self, level)
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).setLevel(level)
+    if level in (self.DEBUG, self.NOISE):
+      self.set_formats('debug', logger)
 
   def get_level_name(self, number):
     return logging._levelToName[number]
@@ -256,3 +260,4 @@ logs = Logging(
   std_format = Logging.formats.bare[0],
   std_datefmt = Logging.formats.bare[1],
 )
+logs.add_level('NOISE', 5, short_name=':')
