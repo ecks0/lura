@@ -7,6 +7,7 @@ from . import hooks
 from . import io
 from . import iter
 from . import random
+from . import sudo
 from . import threads
 from . import tmpl
 from . import time
