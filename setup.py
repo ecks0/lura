@@ -9,9 +9,9 @@ install_requires = [
 
 setup(
   name = 'lura',
-  version = "0.0.1",
-  author = 'Nicholas A. Zigarovich',
-  author_email = 'nick@zigarovich.io',
+  version = "0.1.0",
+  author = 'eckso',
+  author_email = 'eckso@eckso.io',
   description = 'syntactic sugar',
   packages = find_packages(),
   python_requires = ">= 3.6",
