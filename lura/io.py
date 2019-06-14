@@ -24,3 +24,8 @@ def slurp(path, mode='r', encoding=None):
 
 def touch(path, mode=0o600):
   Path(path).touch(mode=mode)
+
+def fext(path):
+  if '.' in path:
+    return path.rsplit('.', 1)[1]
+  raise ValueError(f'File has no extension: {path}')
