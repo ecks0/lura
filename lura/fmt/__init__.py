@@ -1,11 +1,9 @@
 from .json import Json
-from .msgpack import Msgpack
 from .pickle import Pickle
 from .yaml import Yaml
 
 json = Json()
 pickle = Pickle()
-msgpack = Msgpack()
 yaml = Yaml()
 
 from lura.attrs import attr
@@ -13,9 +11,6 @@ from lura.attrs import attr
 formats = attr(
   jsn = json,
   json = json,
-  msgpack = msgpack,
-  mpack = msgpack,
-  mpk = msgpack,
   pickle = pickle,
   pckl = pickle,
   yaml = yaml,
