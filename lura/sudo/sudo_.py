@@ -18,7 +18,7 @@ class TimeoutExpired(RuntimeError):
 
 class Sudo:
 
-  log = logs.get_logger(f'{__name__}.Sudo')
+  log = logs.get_logger('lura.sudo.Sudo')
   shell = shell_path()
 
   TimeoutExpired = TimeoutExpired
