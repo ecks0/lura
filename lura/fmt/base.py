@@ -16,22 +16,26 @@ class Format:
     pass
 
   @abstractmethod
-  def loadf(self, src):
+  def loadf(self, src, encoding='utf-8'):
+    pass
+
+  @abstractmethod
+  def loadfd(self, fd):
     pass
 
   @abstractmethod
   def dumps(self, data):
-    raise NotImplementedError()
-
-  @abstractmethod
-  def dumpf(self, data, dst, encoding='utf-8'):
     pass
 
   @abstractmethod
-  def dumpfd(self, data, fd):
+  def dumpf(self, dst, data, encoding='utf-8'):
     pass
 
-  def mergef(self, patch, path, encoding='utf-8'):
+  @abstractmethod
+  def dumpfd(self, fd, data):
+    pass
+
+  def mergef(self, path, patch, encoding='utf-8'):
     '''
     Merge data into an existing file.
 
@@ -57,11 +61,10 @@ class Format:
       return False
     return dump(path, merged_str, encoding=encoding)
 
-  def mergeff(self, patch, path, encoding='utf-8'):
+  def mergeff(self, path, patch, encoding='utf-8'):
     'Merge data from file patch into data at file path.'
 
     return self.mergef(self.loads(patch), path, encoding=encoding)
 
-  def print(self, data, fd=None, *args, **kwargs):
-    fd = fd if fd else sys.stdout
-    print(self.dumps(data).rstrip(), *args, file=fd, **kwargs)
+  def print(self, data, *args, **kwargs):
+    print(self.dumps(data).rstrip(), *args, **kwargs)

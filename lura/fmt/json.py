@@ -1,4 +1,4 @@
-import json as json_
+import json
 from lura.attrs import ottr
 from lura.fmt.base import Format
 from lura.io import dump
@@ -10,7 +10,7 @@ class Json(Format):
   supports dumping sets (as lists).
   '''
 
-  class Encoder(json_.JSONEncoder):
+  class Encoder(json.JSONEncoder):
     'Custom json encoder which support sets.'
 
     def __init__(self, *args, **kwargs):
@@ -29,26 +29,31 @@ class Json(Format):
   def loads(self, data):
     'Load json from string ``data``.'
 
-    return json_.loads(data, object_pairs_hook=self.object_pairs_hook)
+    return json.loads(data, object_pairs_hook=self.object_pairs_hook)
 
-  def loadf(self, src):
+  def loadf(self, src, encoding=None):
     'Load json from file ``src``.'
 
-    with open(src, encoding='utf-8') as fd:
-      return json_.load(fd, object_pairs_hook=self.object_pairs_hook)
+    with open(src, encoding=encoding) as fd:
+      return json.load(fd, object_pairs_hook=self.object_pairs_hook)
+
+  def loadfd(self, fd):
+    'Load json from file descriptor ``fd``.'
+
+    return self.loads(fd.read()) # FIXME
 
   def dumps(self, data):
     'Return dict ``data`` as json.'
 
-    return json_.dumps(data, indent=self.indent, cls=self.Encoder)
+    return json.dumps(data, indent=self.indent, cls=self.Encoder)
 
-  def dumpf(self, data, dst, encoding='utf-8'):
+  def dumpf(self, dst, data, encoding=None):
     'Write dict ``data`` as json to file ``dst``.'
 
-    data = json_.dumps(data, indent=self.indent, cls=self.Encoder)
+    data = json.dumps(data, indent=self.indent, cls=self.Encoder)
     return dump(dst, data, encoding=encoding)
 
-  def dumpfd(self, data, fd):
+  def dumpfd(self, fd, data):
     'Write dict ``data`` as json to file descriptor ``fd``.'
 
     fd.write(self.dumps(data))
