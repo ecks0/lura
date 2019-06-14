@@ -6,7 +6,7 @@ def map(thread_count, func, items, chunksize=None):
   with ThreadPool(thread_count) as p:
     return p.map(func, items, chunksize=chunksize)
 
-def imap(thread_count, func, items, chunksize=None):
+def imap(thread_count, func, items, chunksize=1):
   with ThreadPool(thread_count) as p:
     return p.imap(func, items, chunksize=chunksize)
 
