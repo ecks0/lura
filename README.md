@@ -4,7 +4,7 @@ lura is a collection of helper modules.
   attrs: dicts which treat attributes as keys
  crypto: syntactic sugar for cryptography.fernet
     fmt: a standard api for dealing with json, yaml, etc.
-   hash: syntactic sugar for haslib
+   hash: syntactic sugar for hashlib
   hooks: primitive event dispatcher
      io: syntactic sugar for io activities
    iter: iterator helpers
