@@ -1,10 +1,8 @@
 import requests
 import sys
 import time
-import traceback
 from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout
 from collections.abc import Mapping, Sequence
-from lura import fmt
 from lura.attrs import attr
 from lura.io import slurp
 from lura.threads import pool
@@ -22,7 +20,7 @@ def Response(headers, code, text, exc_info, start, end):
 def Result(id, request, response, start, end):
   return attr(id=id, request=request, response=response, start=start, end=end)
 
-class MultiCurl:
+class ConCurl:
 
   def __init__(
     self,
@@ -131,5 +129,5 @@ class MultiCurl:
       print()
     return start, time.time(), results
 
-def multicurl(*args, **kwargs):
+def concurl(*args, **kwargs):
   return ConCurl(*args, **kwargs).run()
