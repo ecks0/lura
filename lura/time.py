@@ -2,69 +2,41 @@ import time
 from lura.iter import BufferedIterator, forever
 
 class Timer:
-  'Timer object and context manager.'
 
-  def __init__(self, start=False):
-    'Create instance.'
-
+  def __init__(self):
     super().__init__()
-    self.started = None
-    self.stopped = None
-    if start:
-      self.start()
-
-  def reset(self):
-    'Reset timer (even if started).'
-
-    self.started = None
-    self.stopped = None
+    self.begin = None
+    self.end = None
 
   def __enter__(self):
-    if not self.running:
-      self.start()
+    self.start()
     return self
 
-  def __exit__(self, *exc):
-    if self.running:
-      self.stop()
-
-  def get_running(self):
-    'Return True if this timer is running, else False.'
-
-    return self.started is not None and self.stopped is None
-
-  def get_time(self):
-    '''
-    - If the timer has never been started, return 0.0.
-    - If the timer is running, return the number of seconds since the timer was
-      started.
-    - If the timer is stopped, return the number of seconds the timer had been
-      started before stopping.
-    '''
-    if self.running:
-      return time.time() - self.started
-    if self.started == None:
-      return 0.0
-    return self.stopped - self.started
+  def __exit__(self, *exc_info):
+    self.stop()
 
   def start(self):
-    'Start the timer.'
-
-    if self.running:
-      raise ValueError('Timer already started')
-    self.reset()
-    self.started = time.time()
+    self.begin = time.time()
+    self.end = None
 
   def stop(self):
-    'Stop the timer.'
+    end = time.time()
+    if self.begin is None:
+      raise RuntimeError('Timer not started')
+    self.end = end
 
-    if not self.running:
-      raise ValueError('Timer not started')
-    self.stopped = time.time()
-    return self.time
+  @property
+  def time(self):
+    now = time.time()
+    if self.begin is None:
+      raise RuntimeError('Timer not started')
+    return (now if self.end is None else self.end) - self.begin
 
-  time = property(get_time)
-  running = property(get_running)
+  def format(self):
+    return '%0.15f' % self.time
+
+  def print(self, **kwargs):
+    print(self.format(), **kwargs)
 
 def poll(test, timeout=-1, retries=-1, pause=0.0):
   '''
