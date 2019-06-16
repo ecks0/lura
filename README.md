@@ -8,8 +8,9 @@ lura is a collection of helper modules.
   hooks: primitive event dispatcher
      io: syntactic sugar for io activities
    iter: iterator helpers
-    log: logging configurator and syntactic sugar
+    log: reusable logging configurator and syntactic sugar
  random: random number helpers
+    run: featureful shell command api supporting popen, ptyprocess, and sudo
   shell: helpers for working with the shell
    sudo: popen()-like api for spawning processes with sudo
 testing: helpers for writing tests
