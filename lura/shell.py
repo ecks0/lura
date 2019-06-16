@@ -1,13 +1,18 @@
 import shlex
 import subprocess as subp
+from subprocess import PIPE
+
+def sh(argv):
+  proc = subp.Popen(argv, stdout=PIPE, stderr=PIPE, shell=True, text=True)
+  try:
+    return proc.communicate()
+  finally:
+    proc.kill()
 
 def shell_path():
-  with subp.Popen('echo $0', shell=True, stdout=subp.PIPE) as process:
-    return process.stdout.readline().decode().strip()
+  return sh('echo $0')[0].strip()
 
-def shjoin(argv):
-  'Join a list of command-line arguments using ``shlex.quote()``.'
+def whoami():
+  return sh('whoami')[0].strip()
 
-  if isinstance(argv, str):
-    raise ValueError("'argv' cannot be a 'str' instance")
-  return ' '.join(shlex.quote(a) for a in argv)
+shjoin = subp.list2cmdline
