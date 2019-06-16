@@ -17,6 +17,6 @@ testing: helpers for writing tests
 threads: syntactic sugar for threads
    time: time-related helpers
    tmpl: a standard api for dealing with templating systems
- trace_: call tracing
+  trace: call tracing
   utils: a module for homeless objects
 ```
