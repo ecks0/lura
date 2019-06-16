@@ -65,7 +65,7 @@ class Logging:
 
     # More verbose.
     debug = (
-      '%(run_time)-12.3f %(short_name)20s %(short_levelname)s %(message)s',
+      '%(run_time)-12.3f %(short_name)15s %(short_levelname)s %(message)s',
       '%Y-%m-%d %H:%M:%S',
     ),
 
@@ -113,12 +113,12 @@ class Logging:
     self.level_envvar = level_envvar
     self.format_envvar = format_envvar
     self.append_envvar = append_envvar
-    self.configured = False
+    self.config = None
     self.configure()
 
   def build_config(self):
-    from lura.fmt import yaml
-    self.config = yaml.loads(
+    from lura import fmt
+    config = fmt.yaml.loads(
       f'''
       version: 1
       filters:
@@ -139,34 +139,25 @@ class Logging:
           level: INFO
       '''
     )
-    self.config.filters.short_name = {'()': ExtraInfoFilter}
+    config.filters.short_name = {'()': ExtraInfoFilter}
+    return config
 
   def configure(self):
-    assert(not self.configured)
-    self.build_config()
-    logging.config.dictConfig(self.config)
-    if self.log_envvar not in os.environ:
+    if self.config is not None:
       return
-    file = os.environ[self.log_envvar]
-    level = os.environ.get(self.level_envvar, 'DEBUG')
-    level = getattr(logging, level)
-    append = asbool(os.environ.get(self.append_envvar, '0'))
-    handler = self.add_file_handler(file, level=level, append=append)
-    handler.set_name(self.log_envvar)
-    fmt = os.environ.get(self.format_envvar, 'verbose').lower()
-    handler.setFormatter(logging.Formatter(*self.formats[fmt]))
-    self.configured = True
-
-  def add_level(self, name, number, short_name=None):
-    def log_custom(self, msg, *args, **kwargs):
-      if self.isEnabledFor(number):
-        self._log(number, msg, args, **kwargs)
-    logging.addLevelName(number, name)
-    setattr(logging, name, number)
-    setattr(type(self), name, number)
-    setattr(logging.Logger, name.lower(), log_custom)
-    if short_name is not None:
-      ExtraInfoFilter.map_short_level[name] = short_name
+    self.config = self.build_config()
+    logging.config.dictConfig(self.config)
+    self.add_level('NOISE', 5, ':')
+    if self.level_envvar in os.environ:
+      self.set_level(os.environ[self.level_envvar])
+    if self.log_envvar in os.environ:
+      file = os.environ[self.log_envvar]
+      append = asbool(os.environ.get(self.append_envvar, '0'))
+      level = os.environ.get(self.level_envvar, self.get_level())
+      handler = self.add_file_handler(file, level=level, append=append)
+      handler.set_name(self.log_envvar)
+      fmt = os.environ.get(self.format_envvar, 'verbose').lower()
+      handler.setFormatter(logging.Formatter(*self.formats[fmt]))
 
   def get_logger(self, obj=None):
     if obj is None:
@@ -180,6 +171,34 @@ class Logging:
     return logging.getLogger(name)
 
   getLogger = get_logger
+
+  def get_level(self):
+    'Get standard logger log level.'
+
+    return self.get_logger(self.std_logger).getEffectiveLevel()
+
+  def set_level(self, level):
+    'Set standard logger log level.'
+
+    if isinstance(level, str):
+      level = getattr(self, level)
+    self.get_logger(self.std_logger).setLevel(level)
+    if level in (self.DEBUG, self.NOISE):
+      self.set_formats('debug', self.std_logger)
+
+  def get_level_name(self, number):
+    return logging._levelToName[number]
+
+  def add_level(self, name, number, short_name=None):
+    def log_custom(self, msg, *args, **kwargs):
+      if self.isEnabledFor(number):
+        self._log(number, msg, args, **kwargs)
+    logging.addLevelName(number, name)
+    setattr(logging, name, number)
+    setattr(type(self), name, number)
+    setattr(logging.Logger, name.lower(), log_custom)
+    if short_name is not None:
+      ExtraInfoFilter.map_short_level[name] = short_name
 
   def set_format(self, format, datefmt, logger=None):
     '''
@@ -200,25 +219,6 @@ class Logging:
     logger = self.std_logger if logger is None else logger
     self.set_format(*self.formats[format], logger)
 
-  def get_level(self, logger=None):
-    'Get logger log level.'
-
-    logger = self.std_logger if logger is None else logger
-    return self.get_logger(logger).getEffectiveLevel()
-
-  def set_level(self, level, logger=None):
-    'Set root logger log level.'
-
-    if isinstance(level, str):
-      level = getattr(self, level)
-    logger = self.std_logger if logger is None else logger
-    self.get_logger(logger).setLevel(level)
-    if level in (self.DEBUG, self.NOISE):
-      self.set_formats('debug', logger)
-
-  def get_level_name(self, number):
-    return logging._levelToName[number]
-
   def add_file_handler(self, path, level=None, logger=None, append=True):
     '''
     Add a file handler to write log messages to a file.
@@ -238,6 +238,8 @@ class Logging:
     else:
       handler = logging.StreamHandler(path)
     if level is not None:
+      if isinstance(level, str):
+        level = getattr(self, level)
       handler.setLevel(level)
     formatter = logging.Formatter(*self.formats.verbose)
     handler.setFormatter(formatter)
@@ -260,4 +262,3 @@ logs = Logging(
   std_format = Logging.formats.bare[0],
   std_datefmt = Logging.formats.bare[1],
 )
-logs.add_level('NOISE', 5, short_name=':')
