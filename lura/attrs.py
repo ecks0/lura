@@ -129,6 +129,49 @@ class RecursiveOrderedAttributes(DefaultOrderedAttributes):
   def __init__(self, *args, **kwargs):
     super().__init__(self.__class__, *args, **kwargs)
 
+class AttributesWrapper:
+
+  # FIXME generalize and test; recursive AttributesWrapper
+
+  def __init__(self, target):
+    super().__init__()
+    self.__dict__['__target__'] = target
+
+  def __getitem__(self, *args, **kwargs):
+    return self.__target__.__getitem__(*args, **kwargs)
+
+  def __setitem__(self, *args, **kwargs):
+    self.__target__.__setitem__(*args, **kwargs)
+
+  def __delitem__(self, *args, **kwargs):
+    self.__target__.__delitem__(*args, **kwargs)
+
+  def __iter__(self):
+    return self.__target__.__iter__()
+
+  def __len__(self):
+    return self.__target__.__len__()
+
+  def __getattr__(self, name):
+    if hasattr(self.__target__, name):
+      return getattr(self.__target__, name)
+    try:
+      return self.__target__[name]
+    except KeyError:
+      pass
+    err = f"'{type(self).__name__}' object has no attribute '{name}'"
+    raise AttributeError(err)
+
+  def __setattr__(self, name, value):
+    if name in self.__dict__:
+      self.__dict__[name] = value
+      return
+    target = self.__target__
+    if hasattr(target, name):
+      setattr(target, name, value)
+    else:
+      target[name] = value
+
 attr = Attributes
 dattr = DefaultAttributes
 rattr = RecursiveAttributes
@@ -136,3 +179,5 @@ rattr = RecursiveAttributes
 ottr = OrderedAttributes
 dottr = DefaultOrderedAttributes
 rottr = RecursiveOrderedAttributes
+
+wttr = AttributesWrapper
