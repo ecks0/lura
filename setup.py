@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.2.0'
+version          = '0.3.1'
 author           = 'eckso'
 author_email     = 'eckso@eckso.io'
 url              = 'https://github.com/ecks0/lura'
@@ -10,9 +10,10 @@ long_description = open('README.md').read()
 long_description_content_type = 'text/markdown'
 python_requires  = ">= 3.6"
 install_requires = [
-  'cryptography >= 2.7',
   'Jinja2 >= 2.10',
   'PyYAML >= 3.13',
+  'cryptography >= 2.7',
+  'ptyprocess >= 0.6.0',
 ]
 
 setup(
