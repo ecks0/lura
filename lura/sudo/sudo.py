@@ -28,11 +28,12 @@ class Sudo:
 
   def _command_argv(self):
     self.log.noise('Sudo._command_argv()')
-    return ' '.join((
-      shjoin(['touch', self.tls.ok_path]),
-      '&& exec',
-      shjoin(self.tls.argv),
-    ))
+    argv = [shjoin(['touch', self.tls.ok_path]), '&&']
+    if isinstance(self.tls.argv, str):
+      argv.append(self.tls.argv)
+    else:
+      argv.append(shjoin(self.tls.argv))
+    return ' '.join(argv)
 
   def _sudo_argv(self):
     self.log.noise('Sudo._sudo_argv()')
@@ -163,30 +164,33 @@ class Sudo:
     self._make_fifo()
     self._make_askpass()
     tls.env['SUDO_ASKPASS'] = tls.askpass_path
-    process = subp.Popen(
-      self._sudo_argv(), env=tls.env, stdin=tls.stdin, stdout=tls.stdout,
-      stderr=tls.stderr
-    )
+    proc = subp.Popen(
+      self._sudo_argv(), env=tls.env, cwd=tls.cwd, stdin=tls.stdin,
+      stdout=tls.stdout, stderr=tls.stderr, encoding=tls.encoding,
+      text=tls.text)
     try:
       self._wait_for_sudo()
     except Exception:
-      process.kill()
+      proc.kill()
       raise
-    return process
+    return proc
 
   def popen(
     self,
     argv,
     env = None,
+    cwd = None,
+    shell = None,
+    stdin = None,
     stdout = None,
     stderr = None,
-    stdin = None,
-    become_user = None,
-    become_group = None,
-    become_login = None,
-    become_password = None,
-    become_timeout = None,
-    sleep_interval = None,
+    encoding = None,
+    text = None,
+    sudo_user = None,
+    sudo_group = None,
+    sudo_login = None,
+    sudo_password = None,
+    sudo_timeout = None,
   ):
     try:
       self.log.noise('Sudo.popen()')
@@ -195,15 +199,19 @@ class Sudo:
       tls.state_dir = tls.state_dir_context.__enter__()
       tls.argv = argv
       tls.env = {} if env is None else env
+      tls.cwd = cwd
+      tls.shell = False if shell is None else shell
       tls.stdin = stdin
       tls.stdout = stdout
       tls.stderr = stderr
-      tls.user = become_user
-      tls.group = become_group
-      tls.login = become_login
-      tls.password = become_password
-      tls.timeout = 5 if become_timeout is None else become_timeout
-      tls.sleep_interval = 0.1 if sleep_interval is None else sleep_interval
+      tls.encoding = encoding
+      tls.text = text
+      tls.user = sudo_user
+      tls.group = sudo_group
+      tls.login = sudo_login
+      tls.password = sudo_password
+      tls.timeout = 5 if sudo_timeout is None else sudo_timeout
+      tls.sleep_interval = 0.1
       tls.askpass_path = os.path.join(tls.state_dir, 'sudo_askpass')
       tls.fifo_path = os.path.join(tls.state_dir, 'sudo_askpass_pipe')
       tls.ok_path = os.path.join(tls.state_dir, 'sudo_ok')
@@ -214,3 +222,4 @@ class Sudo:
       self._reset()
 
 popen = Sudo().popen
+Popen = popen

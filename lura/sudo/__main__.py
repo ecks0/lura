@@ -30,8 +30,10 @@ def run(user, group, login, argv):
     if _ in os.environ:
       del os.environ[_]
   password = decrypt(slurp(file).encode(), key.encode()).decode()
+  key = None
   if not keep:
     os.unlink(file)
+  file = None
   process = sudo.popen(
     argv,
     stdin = sys.stdin,
@@ -43,6 +45,7 @@ def run(user, group, login, argv):
     become_password = password,
     become_timeout = timeout,
   )
+  password = None
   try:
     if ok:
       touch(ok)

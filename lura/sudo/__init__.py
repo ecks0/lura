@@ -1,2 +1,3 @@
-from .sudo_ import Sudo
-from .sudo_ import popen
+from .sudo import Sudo
+from .sudo import popen
+from .sudo import Popen
