@@ -1,12 +1,13 @@
 import os
 import sys
 import subprocess as subp
-import time
 import threading
 from lura import logs
 from lura.io import dump, mkfifo, slurp
 from lura.shell import shell_path, shjoin
+from lura.time import Timer
 from tempfile import TemporaryDirectory
+from time import sleep
 
 log = logs.get_logger('lura.sudo')
 shell = shell_path()
@@ -23,6 +24,8 @@ class TimeoutExpired(RuntimeError):
 def _command_argv():
   log.noise('_command_argv()')
   argv = [shjoin(['touch', tls.ok_path]), '&&']
+  if not tls.shell:
+    argv.append('exec')
   if isinstance(tls.argv, str):
     argv.append(tls.argv)
   else:
@@ -60,6 +63,7 @@ def _make_fifo():
   mkfifo(tls.fifo_path)
 
 def _open_fifo():
+  log.noise('_open_fifo()')
   try:
     tls.fifo = os.open(tls.fifo_path, os.O_NONBLOCK | os.O_WRONLY)
     return True
@@ -69,16 +73,15 @@ def _open_fifo():
 def _write_fifo(timeout):
   log.noise('_write_fifo()')
   password = tls.password.encode()
-  i = 0
+  pos = 0
   end = len(password)
-  start = time.time()
-  elapsed = lambda: time.time() - start
+  timer = Timer(start=True)
   while True:
     try:
-      n = os.write(tls.fifo, password[i:])
+      n = os.write(tls.fifo, password[pos:])
       log.noise(f'_write_fifo() wrote {n} bytes')
-      i += n
-      if i == end:
+      pos += n
+      if pos == end:
         log.noise(f'_write_fifo() write complete')
         return
     except BlockingIOError:
@@ -86,11 +89,11 @@ def _write_fifo(timeout):
     if _check_ok():
       log.noise(f'_write_fifo() check ok')
       return
-    if timeout < elapsed():
-      log.noise(f'_write_fifo() timeout={timeout} expired')
+    if tls.timeout < timer.time:
+      log.noise(f'_write_fifo() timeout {timeout}s expired')
       raise TimeoutExpired()
     log.noise(f'_write_fifo() sleeps for {tls.sleep_interval}s')
-    time.sleep(tls.sleep_interval)
+    sleep(tls.sleep_interval)
 
 def _close_fifo():
   log.noise('_close_fifo()')
@@ -102,32 +105,31 @@ def _close_fifo():
 
 def _wait_for_sudo():
   log.noise('_wait_for_sudo()')
-  start = time.time()
-  elapsed = lambda: time.time() - start
+  timer = Timer(start=True)
   log.noise('_wait_for_sudo() fifo begin')
   while True:
     if _open_fifo():
       try:
-        _write_fifo(tls.timeout - elapsed())
+        _write_fifo(tls.timeout - timer.time)
         break
       finally:
         _close_fifo()
     if _check_ok():
       log.noise('_wait_for_sudo() check ok 1')
       return
-    if tls.timeout < elapsed():
-      log.noise(f'_wait_for_sudo() timeout expired 1')
+    if tls.timeout < timer.time:
+      log.noise(f'_wait_for_sudo() timeout {timeout}s expired 1')
       raise TimeoutExpired()
     log.noise(f'_wait_for_sudo() sleeps for {tls.sleep_interval}s 1')
-    time.sleep(tls.sleep_interval)
+    sleep(tls.sleep_interval)
   log.noise('_wait_for_sudo() fifo end')
   log.noise('_wait_for_sudo() await ok')
   while not _check_ok():
-    if timeout < elapsed():
-      log.noise(f'_wait_for_sudo() timeout expired 2')
+    if tls.timeout < timer.time:
+      log.noise(f'_wait_for_sudo() timeout {timeout}s expired 2')
       raise TimeoutExpired()
     log.noise(f'_wait_for_sudo() sleeps for {tls.sleep_interval}s 2')
-    time.sleep(tls.sleep_interval)
+    sleep(tls.sleep_interval)
   log.noise('_wait_for_sudo() check ok 2')
 
 def _make_askpass():
@@ -142,8 +144,7 @@ def _reset():
     tls.state_dir_context.__exit__(None, None, None)
   except Exception:
     log.exception('Exception while deleting state directory')
-  for _ in list(tls.__dict__.keys()):
-    delattr(tls, _)
+  tls.__dict__.clear()
 
 def _popen():
   log.noise('_popen()')
