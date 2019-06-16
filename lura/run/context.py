@@ -75,9 +75,7 @@ class Context:
     self._logcall('cleanup()')
     if not all(_ in (None, []) for _ in self.context.values()):
       self.log.info('run.context is not empty at run.Context cleanup')
-      scrubbed = scrub(dict(self.context))
-      msg = fmt.yaml.dumps(scrubbed)
-      logs.lines(self.log.debug, msg, prefix='  ')
+      log_context(self.log.debug)
     self.context.clear()
 
   def push(self):
@@ -111,7 +109,6 @@ class Context:
 class Quash(Context):
 
   def __init__(self):
-    print('hello quash')
     autosetvars = ('enforce',)
     super().__init__(autosetvars)
     self.enforce = False
@@ -128,7 +125,6 @@ class Enforce(Context):
 class Cwd(Context):
 
   def __init__(self, cwd):
-    print('hello cwd')
     autosetvars = ('cwd',)
     super().__init__(autosetvars)
     self.cwd = cwd
