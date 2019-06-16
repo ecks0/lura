@@ -116,6 +116,32 @@ class Logging:
     self.config = None
     self.configure()
 
+  def configure(self):
+    if self.config is not None:
+      return
+    self.config_logging()
+    self.config_levels()
+    self.config_environment()
+
+  def config_logging(self):
+    self.config = self.build_config()
+    logging.config.dictConfig(self.config)
+
+  def config_levels(self):
+    self.add_level('NOISE', 5, ':')
+
+  def config_environment(self):
+    if self.level_envvar in os.environ:
+      self.set_level(os.environ[self.level_envvar].upper())
+    if self.log_envvar in os.environ:
+      file = os.environ[self.log_envvar]
+      append = asbool(os.environ.get(self.append_envvar, '0'))
+      level = os.environ.get(self.level_envvar, self.get_level())
+      handler = self.add_file_handler(file, level=level, append=append)
+      handler.set_name(self.log_envvar)
+      fmt = os.environ.get(self.format_envvar, 'verbose').lower()
+      handler.setFormatter(logging.Formatter(*self.formats[fmt]))
+
   def build_config(self):
     from lura import fmt
     config = fmt.yaml.loads(
@@ -142,22 +168,11 @@ class Logging:
     config.filters.short_name = {'()': ExtraInfoFilter}
     return config
 
-  def configure(self):
-    if self.config is not None:
-      return
-    self.config = self.build_config()
-    logging.config.dictConfig(self.config)
-    self.add_level('NOISE', 5, ':')
-    if self.level_envvar in os.environ:
-      self.set_level(os.environ[self.level_envvar])
-    if self.log_envvar in os.environ:
-      file = os.environ[self.log_envvar]
-      append = asbool(os.environ.get(self.append_envvar, '0'))
-      level = os.environ.get(self.level_envvar, self.get_level())
-      handler = self.add_file_handler(file, level=level, append=append)
-      handler.set_name(self.log_envvar)
-      fmt = os.environ.get(self.format_envvar, 'verbose').lower()
-      handler.setFormatter(logging.Formatter(*self.formats[fmt]))
+  def build_logger_log_method(self, level):
+    def log_level(self, msg, *args, **kwargs):
+      if self.isEnabledFor(level):
+        self._log(level, msg, args, **kwargs)
+    return log_level
 
   def get_logger(self, obj=None):
     if obj is None:
@@ -190,13 +205,12 @@ class Logging:
     return logging._levelToName[number]
 
   def add_level(self, name, number, short_name=None):
-    def log_custom(self, msg, *args, **kwargs):
-      if self.isEnabledFor(number):
-        self._log(number, msg, args, **kwargs)
+    assert(not hasattr(logging.Logger, name.lower()))
     logging.addLevelName(number, name)
     setattr(logging, name, number)
     setattr(type(self), name, number)
-    setattr(logging.Logger, name.lower(), log_custom)
+    setattr(
+      logging.Logger, name.lower(), self.build_logger_log_method(number))
     if short_name is not None:
       ExtraInfoFilter.map_short_level[name] = short_name
 
@@ -256,6 +270,13 @@ class Logging:
     '''
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).removeHandler(handler)
+
+  def lines(self, log_fn, lines, prefix='', *args, **kwargs):
+    assert(callable(log_fn))
+    if isinstance(lines, str):
+      lines = lines.rstrip().split('\n')
+    for line in lines:
+      log_fn(f'{prefix}{line}', *args, **kwargs)
 
 logs = Logging(
   std_logger = __name__.split('.')[0],
