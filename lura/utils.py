@@ -4,10 +4,6 @@ from collections import MutableMapping, MutableSequence
 from copy import deepcopy
 from distutils.util import strtobool
 
-intrinsic_types = (
-  type(None), bool, int, float, complex, str, tuple, list, set, dict,
-)
-
 def isexc(o):
   '''
   ``True`` if ``o`` is a tuple as returned by ``sys.exc_info()``, else
@@ -91,3 +87,18 @@ class ObjectProxy:
       return getattr(self._proxied_object, name)
     err = f"'{type(self).__name__}' object has no attribute '{k}'"
     raise AttributeError(err)
+
+def scrub(obj, tag='[scrubbed]'):
+  from collections.abc import MutableMapping, Sequence
+  for name, value in obj.items():
+    if isinstance(value, str) and 'pass' in name.lower():
+      obj[name] = tag
+    elif isinstance(value, bytes) and 'pass' in name.lower():
+      obj[name] = tag.encode()
+    elif isinstance(value, MutableMapping):
+      scrub(value)
+    elif isinstance(value, Sequence):
+      for item in value:
+        if isinstance(value, MutableMapping):
+          scrub(value)
+  return obj
