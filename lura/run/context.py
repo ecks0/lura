@@ -5,7 +5,7 @@ from lura.utils import scrub
 from .run import run, is_non_str_sequence, log_context
 
 class Context:
-  'Base class for run count.'
+  'Base class for run context.'
 
   log = logs.get_logger('lura.run.Context')
 
