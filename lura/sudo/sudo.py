@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 
 log = logs.get_logger('lura.sudo')
 shell = shell_path()
+tls = threading.local()
 
 class TimeoutExpired(RuntimeError):
 
@@ -21,16 +22,15 @@ class TimeoutExpired(RuntimeError):
 
 def _command_argv():
   log.noise('_command_argv()')
-  argv = [shjoin(['touch', popen.tls.ok_path]), '&&']
-  if isinstance(popen.tls.argv, str):
-    argv.append(popen.tls.argv)
+  argv = [shjoin(['touch', tls.ok_path]), '&&']
+  if isinstance(tls.argv, str):
+    argv.append(tls.argv)
   else:
-    argv.append(shjoin(popen.tls.argv))
+    argv.append(shjoin(tls.argv))
   return ' '.join(argv)
 
 def _sudo_argv():
   log.noise('_sudo_argv()')
-  tls = popen.tls
   sudo_argv = ['sudo', '-A']
   if tls.user is not None:
     sudo_argv += ['-u', tls.user]
@@ -48,19 +48,18 @@ def _askpass_argv():
     '-m',
     'lura.sudo', # FIXME
     'askpass',
-    popen.tls.fifo_path,
-    str(float(popen.tls.timeout)),
+    tls.fifo_path,
+    str(float(tls.timeout)),
   ])
 
 def _check_ok():
- return os.path.isfile(popen.tls.ok_path)
+ return os.path.isfile(tls.ok_path)
 
 def _make_fifo():
   log.noise('_make_fifo()')
-  mkfifo(popen.tls.fifo_path)
+  mkfifo(tls.fifo_path)
 
 def _open_fifo():
-  tls = popen.tls
   try:
     tls.fifo = os.open(tls.fifo_path, os.O_NONBLOCK | os.O_WRONLY)
     return True
@@ -69,7 +68,6 @@ def _open_fifo():
 
 def _write_fifo(timeout):
   log.noise('_write_fifo()')
-  tls = popen.tls
   password = tls.password.encode()
   i = 0
   end = len(password)
@@ -97,14 +95,13 @@ def _write_fifo(timeout):
 def _close_fifo():
   log.noise('_close_fifo()')
   try:
-    os.close(popen.tls.fifo)
+    os.close(tls.fifo)
   except Exception:
     log.exception('Error while closing pipe to sudo askpass')
-  popen.tls.fifo = None
+  tls.fifo = None
 
 def _wait_for_sudo():
   log.noise('_wait_for_sudo()')
-  tls = popen.tls
   start = time.time()
   elapsed = lambda: time.time() - start
   log.noise('_wait_for_sudo() fifo begin')
@@ -136,12 +133,11 @@ def _wait_for_sudo():
 def _make_askpass():
   log.noise('_make_askpass()')
   contents = f'#!{shell}\nexec {_askpass_argv()}\n'
-  dump(popen.tls.askpass_path, contents)
-  os.chmod(popen.tls.askpass_path, 0o700)
+  dump(tls.askpass_path, contents)
+  os.chmod(tls.askpass_path, 0o700)
 
 def _reset():
   log.noise('_reset()')
-  tls = popen.tls
   try:
     tls.state_dir_context.__exit__(None, None, None)
   except Exception:
@@ -151,7 +147,6 @@ def _reset():
 
 def _popen():
   log.noise('_popen()')
-  tls = popen.tls
   _make_fifo()
   _make_askpass()
   tls.env['SUDO_ASKPASS'] = tls.askpass_path
@@ -184,7 +179,6 @@ def popen(
 ):
   try:
     log.noise('popen()')
-    tls = popen.tls
     tls.state_dir_context = TemporaryDirectory()
     tls.state_dir = tls.state_dir_context.__enter__()
     tls.argv = argv
@@ -211,5 +205,4 @@ def popen(
   finally:
     _reset()
 
-popen.tls = threading.local()
 Popen = popen
