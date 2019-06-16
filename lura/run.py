@@ -11,11 +11,11 @@ from lura.attrs import attr, ottr, wttr
 from lura.io import LogWriter, Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
 from lura.sudo import popen as sudo_popen
+from lura.utils import scrub
 from ptyprocess import PtyProcessUnicode
 from subprocess import PIPE, Popen as subp_popen
 
 log = logs.get_logger('lura.run')
-NONE = object()
 
 class Info:
   'Base class for Error and Result.'
@@ -63,7 +63,7 @@ class Error(RuntimeError, Info):
 
   def __init__(self, *args):
     Info.__init__(self, *args)
-    msg = f'Process exited with code {self.code}: {shjoin(self.argv)})'
+    msg = f'Process exited with code {self.code}: {self.args})'
     RuntimeError.__init__(self, msg)
 
 def _run_stdio(proc, argv, args, stdout, stderr):
@@ -106,8 +106,7 @@ def _run_pty(argv, args, env, cwd, shell, stdout, **kwargs):
     try:
       proc.kill(9)
     except Exception:
-      msg = 'runpty(): unhandled exception while killing pty process'
-      log.debug(msg, exc_info=True)
+      log.exception('Unhandled exception when finally killing pty process')
     out.close()
 
 def _run_sudo(
@@ -126,21 +125,23 @@ def lookup(name):
   log.noise(f'lookup({name})')
   default_value = run.defaults[name]
   context_value = run.context().get(name)
-  is_str = isinstance(default_value, str)
-  is_seq = isinstance(default_value, Sequence)
-  if is_seq and not is_str:
+  if is_non_str_sequence(default_value):
     if context_value:
-      return list(default_value) + context_value
-    return list(default_value)
+      value = []
+      value.extend(default_value)
+      value.extend(context_value)
+      return value
+    else:
+      return list(default_value)
   elif context_value:
     return context_value
   else:
     return default_value
 
 def merge_args(user_args):
-  log.noise(f'merge_args({user_args})')
+  log.noise(f'merge_args()')
   stdio = ('stdout', 'stderr')
-  for name in run.defaults.keys():
+  for name in run.defaults:
     if name in stdio:
       continue
     if user_args.get(name) is None:
@@ -148,14 +149,14 @@ def merge_args(user_args):
   for name in stdio:
     user_value = user_args.get(name)
     default_value = lookup(name)
-    if not user_value:
+    if user_value:
+      if not isinstance(user_value, Sequence):
+        user_value = (user_value,)
+      user_args[name] = []
+      user_args[name].extend(user_value)
+      user_args[name].extend(default_value)
+    else:
       user_args[name] = default_value
-      continue
-    if not isinstance(user_value, Sequence):
-      user_value = (user_value,)
-    user_args[name] = []
-    user_args[name].extend(user_value)
-    user_args[name].extend(default_value)
   return attr(user_args)
 
 def run(argv, **kwargs):
@@ -171,85 +172,138 @@ def run(argv, **kwargs):
     args = shjoin(argv)
   run_real = globals()[f'_run_{kwargs.mode}']
   result = run_real(argv, args, **kwargs)
-  if kwargs.enforce is not None and result.code != kwargs.enforce:
+  if kwargs.enforce is True and result.code != kwargs.enforce_code:
     raise run.error(result)
   return result
 
-class Context:
+def is_non_str_sequence(obj):
+  return not isinstance(obj, str) and isinstance(obj, Sequence)
 
-  def __init__(self):
+class Context:
+  'Base class for run contexts.'
+
+  log = logs.get_logger('fuga.run.Context')
+
+  def __init__(self, autosetvars=None):
     super().__init__()
+    self.autosetvars = autosetvars
+    self.context = run.context()
+    self.previous = attr()
+    self.name = type(self).__name__
+
+  def _logcall(self, msg, *args, **kwargs):
+    self.log.noise(f'{self.name}.{msg}', *args, **kwargs)
+
+  def set(self, name, value, merge=True):
+    'Set a context variable and save its previous value for unset().'
+
+    self._logcall(f'set({name}, merge={merge})')
+    assert(name not in self.previous)
+    if is_non_str_sequence(value) and merge:
+      self.previous[name] = list(self.context.setdefault(name, []))
+      self.context[name].extend(value)
+    else:
+      self.previous[name] = self.context.get(name)
+      self.context[name] = value
+
+  def unset(self, name):
+    'Restore a context variable to its original value.'
+
+    self._logcall(f'unset({name})')
+    value = self.previous[name]
+    if value in (None, []):
+      del self.context[name]
+    elif is_non_str_sequence(value):
+      self.context[name].clear()
+      self.context[name].extend(value)
+    else:
+      self.context[name] = value
+    del self.previous[name]
+
+  def autoset(self):
+    'Automatically assign context variable values from instance attributes.'
+
+    if not self.autosetvars:
+      self._logcall('autoset() nothing to set')
+      return
+    self._logcall('autoset()')
+    for name in self.autosetvars:
+      merge = True
+      if not isinstance(name, str):
+        name, merge = name
+      self.set(name, getattr(self, name), merge)
+
+  def autounset(self):
+    'Restore all previous context variables to their original values.'
+
+    if not self.previous:
+      self._logcall('autounset() nothing to autounset')
+      return
+    self._logcall('autounset()')
+    for name in list(self.previous):
+      self.unset(name)
+
+  def cleanup(self):
+    'Cleanup any lingering values in run.context.'
+
+    self._logcall('cleanup()')
+    if not all(_ in (None, []) for _ in self.context.values()):
+      self.log.info('run.context is not empty at run.Context cleanup')
+      scrubbed = scrub(dict(self.context))
+      msg = fmt.yaml.dumps(scrubbed)
+      logs.lines(self.log.debug, msg, prefix='  ')
+    self.context.clear()
+
+  def push(self):
+    'Increment the thread-global context count.'
+
+    self._logcall('push()')
+    self.context.count = self.context.setdefault('count', 0) + 1
+
+  def pop(self):
+    'Decrement the thread-global context count.'
+
+    self._logcall('pop()')
+    self.context.count -= 1
+    if self.context.count == 0:
+      del self.context['count']
+      self.cleanup()
 
   def __enter__(self):
-    log.noise(f'{type(self).__name__}.__enter__()')
-    context = run.context()
-    context.count = context.setdefault('count', 0) + 1
+    self._logcall('__enter__()')
+    self.push()
+    self.autoset()
 
   def __exit__(self, *exc_info):
-    log.noise(f'{type(self).__name__}.__exit__()')
-    context = run.context()
-    context.count -= 1
-    if context.count == 0:
-      if not all(_ is None for _ in context.values()):
-        log.warn('run.context is not empty at last context exit:')
-        if 'become_password' in context:
-          context.become_password = '(scrubbed)'
-        for line in fmt.yaml.dumps(context).split('\n'):
-          log.debug(f'  {line}')
-      log.noise('Last context exited, clearing tls')
-      del context[:]
+    self._logcall('__exit__()')
+    self.autounset()
+    self.pop()
 
 class Enforce(Context):
 
-  def __init__(self, code):
-    super().__init__()
-    self.code = code
-    self.previous = NONE
+  def __init__(self, enforce_code):
+    assert(isinstance(enforce_code, int))
+    autosetvars = ('enforce_code', 'enforce')
+    super().__init__(autosetvars)
+    self.enforce_code = enforce_code
+    self.enforce = True
 
-  def __enter__(self):
-    super().__enter__()
-    context = run.context()
-    self.previous = context.get('enforce', NONE)
-    context.enforce = self.code
-
-  def __exit__(self, *exc_info):
-    context = run.context()
-    if self.previous == NONE:
-      del context['enforce']
-    else:
-      run.context = self.previous
-    return super().__exit(*exc_info)
-
-class Quash(Enforce):
+class Quash(Context):
 
   def __init__(self):
-    super().__init__(None)
+    autosetvars = ('enforce')
+    super().__init__(autosetvars)
+    self.enforce = False
 
 class Stdio(Context):
 
-  def __init__(self, stdout, stderr=()):
-    super().__init__()
+  def __init__(self, stdout, stderr=[], excl=False):
+    autosetvars = [('stdio', not excl)]
+    if stderr or excl:
+      autosetvars.append(('stderr', not excl))
+    super().__init__(autosetvars)
     self.stdout = stdout if isinstance(stdout, Sequence) else (stdout,)
     self.stderr = stderr if isinstance(stderr, Sequence) else (stderr,)
-
-  def __enter__(self):
-    super().__enter__()
-    context = run.context()
-    context.setdefault('stdout', []).extend(self.stdout)
-    if self.stderr:
-      context.setdefault('stderr', []).extend(self.stderr)
-
-  def __exit__(self, *exc_info):
-    context = run.context()
-    pairs = [(context.stdout, self.stdout)]
-    if self.stderr:
-      pairs.append((context.stderr, self.stderr))
-    for all, expel in pairs:
-      all.reverse()
-      for _ in reversed(expel):
-        all.remove(_)
-      all.reverse()
-    return super().__exit__(*exc_info)
 
 class Log(Stdio):
 
@@ -257,36 +311,21 @@ class Log(Stdio):
     super().__init__(
       LogWriter(log, level, '[stdout]'), LogWriter(log, level, '[stderr]'))
 
-class Sudo:
+class Sudo(Context):
 
   def __init__(
     self, password=None, user=None, group=None, login=None, timeout=None
   ):
-    super().__init__()
+    autosetvars = (
+      'sudo_user', 'sudo_password', 'sudo_group', 'sudo_login', 'sudo_timeout',
+      'mode')
+    super().__init__(autosetvars)
     self.sudo_user = user
     self.sudo_password = password
     self.sudo_group = group
     self.sudo_login = login
     self.sudo_timeout = timeout
     self.mode = 'sudo'
-    self.previous = None
-
-  def vars(self, obj):
-    return {
-      k: obj.get(k)
-      for k in self.__dict__.keys()
-      if k not in ('previous',)
-    }
-
-  def __enter__(self):
-    log.noise(f'{type(self).__name__}.__enter__()')
-    context = run.context()
-    self.previous = self.vars(context)
-    context.update(self.vars(self.__dict__))
-
-  def __exit__(self, *exc_info):
-    log.noise(f'{type(self).__name__}.__exit__()')
-    run.context().update(self.previous)
 
 def getsudopass(prompt=None):
   log.noise('getsudopass()')
@@ -337,12 +376,13 @@ run.defaults.cwd = None
 run.defaults.shell = None
 run.defaults.stdout = []
 run.defaults.stderr = []
+run.defaults.enforce_code = 0
+run.defaults.enforce = True
 run.defaults.sudo_user = None
 run.defaults.sudo_group = None
 run.defaults.sudo_password = None
 run.defaults.sudo_login = None
 run.defaults.sudo_timeout = 3
-run.defaults.enforce = 0
 
 # context manager variable storage
 run.context = lambda: wttr(run.context.tls.__dict__)
