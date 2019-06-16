@@ -5,10 +5,12 @@ class Timer:
 
   format_precision = 10
 
-  def __init__(self):
+  def __init__(self, start=False):
     super().__init__()
     self.begin = None
     self.end = None
+    if start:
+      self.start()
 
   def __enter__(self):
     self.start()
@@ -24,14 +26,18 @@ class Timer:
   def stop(self):
     end = time.time()
     if self.begin is None:
-      raise RuntimeError('Timer not started')
+      raise Value('Timer not started')
     self.end = end
+
+  @property
+  def started(self):
+    return self.start is not None and self.end is None
 
   @property
   def time(self):
     now = time.time()
     if self.begin is None:
-      raise RuntimeError('Timer not started')
+      raise ValueError('Timer not started')
     return (now if self.end is None else self.end) - self.begin
 
   def format(self):
