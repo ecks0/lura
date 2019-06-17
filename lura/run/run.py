@@ -5,7 +5,7 @@ import threading
 from collections.abc import Sequence
 from getpass import getpass
 from io import StringIO
-from lura import fmt, logs
+from lura import formats, logs
 from lura.attrs import attr, ottr, wttr
 from lura.io import LogWriter, Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
@@ -22,7 +22,7 @@ def is_non_str_sequence(obj):
 def log_context(log, level=logs.NOISE):
   if not log.isEnabledFor(level):
     return
-  lines = fmt.yaml.dumps(scrub(dict(run.context())))
+  lines = formats.yaml.dumps(scrub(dict(run.context())))
   logs.lines(log, level, lines, prefix='    ')
 
 class Info:
@@ -46,9 +46,9 @@ class Info:
     return type(((name, getattr(self, name)) for name in self.members))
 
   def format(self, fmt='yaml'):
-    from lura.fmt import formats
+    from lura import formats
     tag = 'run.{}'.format(type(self).__name__.lower())
-    return formats[fmt].dumps({tag: self.as_dict()})
+    return formats.ext[fmt].dumps({tag: self.as_dict()})
 
   def print(self, fmt='yaml', file=None):
     file = sys.stdout if file is None else file

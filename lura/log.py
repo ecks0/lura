@@ -143,8 +143,8 @@ class Logging:
       handler.setFormatter(logging.Formatter(*self.formats[fmt]))
 
   def build_config(self):
-    from lura import fmt
-    config = fmt.yaml.loads(
+    from lura.formats import yaml
+    config = yaml.loads(
       f'''
       version: 1
       filters:

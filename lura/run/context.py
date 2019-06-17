@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from lura import fmt, logs
+from lura import logs
 from lura.attrs import attr
 from lura.utils import scrub
 from .run import run, is_non_str_sequence, log_context
