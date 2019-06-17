@@ -141,9 +141,12 @@ class Stdio(Context):
 
 class Log(Stdio):
 
-  def __init__(self, log, level='DEBUG'):
+  def __init__(self, log, level='DEBUG', excl=False):
     super().__init__(
-      LogWriter(log, level, '[stdout]'), LogWriter(log, level, '[stderr]'))
+      LogWriter(log, level, '[stdout]'),
+      LogWriter(log, level, '[stderr]'),
+      excl,
+    )
 
 class Sudo(Context):
 
