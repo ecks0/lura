@@ -9,21 +9,25 @@ class Context:
 
   log = logs.get_logger('lura.run.Context')
 
+  @classmethod
+  def _log_context(cls):
+    log_context(cls.log.noise)
+
   def __init__(self, autosetvars=None):
     super().__init__()
     self.autosetvars = autosetvars
     self.context = run.context()
     self.previous = attr()
     self.name = type(self).__name__
-    self._logcall(f'__init__(autosetvars={autosetvars})')
+    self._log(f'__init__(autosetvars={autosetvars})')
 
-  def _logcall(self, msg, *args, **kwargs):
+  def _log(self, msg, *args, **kwargs):
     self.log.noise(f'{self.name}.{msg}', *args, **kwargs)
 
   def set(self, name, value, merge=True):
     'Set a context variable and save its previous value for unset().'
 
-    self._logcall(f'set({name}, merge={merge})')
+    self._log(f'set({name}, merge={merge})')
     assert(name not in self.previous)
     if is_non_str_sequence(value) and merge:
       self.previous[name] = list(self.context.setdefault(name, []))
@@ -35,7 +39,7 @@ class Context:
   def unset(self, name):
     'Restore a context variable to its original value.'
 
-    self._logcall(f'unset({name})')
+    self._log(f'unset({name})')
     value = self.previous[name]
     if value in (None, []):
       del self.context[name]
@@ -50,9 +54,9 @@ class Context:
     'Automatically assign context variable values from instance attributes.'
 
     if not self.autosetvars:
-      self._logcall('autoset() nothing to set')
+      self._log('autoset() nothing to set')
       return
-    self._logcall('autoset()')
+    self._log('autoset()')
     for name in self.autosetvars:
       merge = True
       if not isinstance(name, str):
@@ -63,48 +67,48 @@ class Context:
     'Restore all previous context variables to their original values.'
 
     if not self.previous:
-      self._logcall('autounset() nothing to autounset')
+      self._log('autounset() nothing to unset')
       return
-    self._logcall('autounset()')
+    self._log('autounset()')
     for name in list(self.previous):
       self.unset(name)
 
   def cleanup(self):
     'Cleanup any lingering values in run.context.'
 
-    self._logcall('cleanup()')
+    self._log('cleanup()')
     if not all(_ in (None, []) for _ in self.context.values()):
       self.log.info('run.context is not empty at run.Context cleanup')
-      log_context(self.log.debug)
+      self._log_context()
     self.context.clear()
 
   def push(self):
     'Increment the thread-global context count.'
 
-    self._logcall('push()')
+    self._log('push()')
     self.context.count = self.context.setdefault('count', 0) + 1
 
   def pop(self):
     'Decrement the thread-global context count.'
 
-    self._logcall('pop()')
+    self._log('pop()')
     self.context.count -= 1
     if self.context.count == 0:
       del self.context['count']
       self.cleanup()
 
   def __enter__(self):
-    self._logcall('__enter__() begins with context:')
-    log_context(self.log.noise)
+    self._log('__enter__() begins with context:')
+    self._log_context()
     self.push()
     self.autoset()
 
   def __exit__(self, *exc_info):
-    self._logcall('__exit__()')
+    self._log('__exit__()')
     self.autounset()
     self.pop()
-    self._logcall('__exit__() returns returns context:')
-    log_context(self.log.noise)
+    self._log('__exit__() returns with context:')
+    self._log_context()
 
 class Quash(Context):
 
@@ -176,9 +180,9 @@ class New(Context):
     self.old = {k: v for (k, v) in self.context.items() if k not in filter}
     for name in self.old:
       del self.context[name]
-    self._logcall('__enter__() new context:')
-    log_context(self.log.noise)
+    self._log('__enter__() new context:')
+    self._log_context()
 
   def __exit__(self, *exc_info):
-    super().__exit__()
     self.context.update(self.old)
+    super().__exit__()
