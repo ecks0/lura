@@ -1,13 +1,15 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.3.2'
+version          = '0.3.3'
 author           = 'eckso'
 author_email     = 'eckso@eckso.io'
 url              = 'https://github.com/ecks0/lura'
 description      = 'syntactic sugar'
-long_description = open('README.md').read()
+
+long_description              = open('README.md').read()
 long_description_content_type = 'text/markdown'
+
 python_requires  = ">= 3.6"
 install_requires = [
   'Jinja2 >= 2.10',
