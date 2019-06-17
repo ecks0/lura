@@ -1,6 +1,6 @@
 import msgpack
 from lura.attrs import ottr
-from lura.fmt.base import Format
+from lura.formats.base import Format
 from lura.io import dump
 
 class Msgpack(Format):

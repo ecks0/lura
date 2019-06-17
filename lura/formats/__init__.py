@@ -8,7 +8,7 @@ yaml = Yaml()
 
 from lura.attrs import attr
 
-formats = attr(
+ext = attr(
   jsn = json,
   json = json,
   pickle = pickle,
@@ -16,6 +16,9 @@ formats = attr(
   yaml = yaml,
   yml = yaml,
 )
+
+def for_ext(e):
+  return ext[e.lower()]
 
 del attr
 
