@@ -271,12 +271,20 @@ class Logging:
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).removeHandler(handler)
 
-  def lines(self, log_fn, lines, prefix='', *args, **kwargs):
-    assert(callable(log_fn))
+  def lines(self, log, level, lines, prefix='', *args, **kwargs):
+    if isinstance(level, str):
+      name = level.lower()
+      number = getattr(self, name.upper())
+    else:
+      name = self.get_level_name(level).lower()
+      number = level
+    if not log.isEnabledFor(number):
+      return
+    fn = getattr(log, name)
     if isinstance(lines, str):
       lines = lines.rstrip().split('\n')
     for line in lines:
-      log_fn(f'{prefix}{line}', *args, **kwargs)
+      fn(f'{prefix}{line}', *args, **kwargs)
 
 logs = Logging(
   std_logger = __name__.split('.')[0],

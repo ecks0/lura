@@ -5,13 +5,13 @@ from lura.utils import scrub
 from .run import run, is_non_str_sequence, log_context
 
 class Context:
-  'Base class for run context.'
+  'Base class for run contexts.'
 
   log = logs.get_logger('lura.run.Context')
 
   @classmethod
   def _log_context(cls):
-    log_context(cls.log.noise)
+    log_context(cls.log)
 
   def __init__(self, autosetvars=None):
     super().__init__()

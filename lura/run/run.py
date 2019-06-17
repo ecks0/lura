@@ -19,9 +19,11 @@ log = logs.get_logger('lura.run')
 def is_non_str_sequence(obj):
   return not isinstance(obj, str) and isinstance(obj, Sequence)
 
-def log_context(log):
-  scrubbed = scrub(dict(run.context()))
-  logs.lines(log, fmt.yaml.dumps(scrubbed), prefix='    ')
+def log_context(log, level=logs.NOISE):
+  if not log.isEnabledFor(level):
+    return
+  lines = fmt.yaml.dumps(scrub(dict(run.context())))
+  logs.lines(log, level, lines, prefix='    ')
 
 class Info:
   'Base class for Error and Result.'
@@ -166,7 +168,7 @@ def merge_args(user_args):
 
 def run(argv, **kwargs):
   log.noise('run() begins with context:')
-  log_context(log.noise)
+  log_context(log)
   kwargs = merge_args(kwargs)
   modes = ('popen', 'pty', 'sudo')
   if kwargs.mode not in modes:
@@ -181,7 +183,7 @@ def run(argv, **kwargs):
   if kwargs.enforce is True and result.code != kwargs.enforce_code:
     raise run.error(result)
   log.noise('run() returns with context:')
-  log_context(log.noise)
+  log_context(log)
   return result
 
 def getsudopass(prompt=None):
