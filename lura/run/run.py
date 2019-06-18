@@ -102,7 +102,7 @@ def _run_pty(cmd, argv, env, cwd, shell, stdout, **kwargs):
     argv = [run.default_shell, '-c', cmd]
     cmd = shjoin(argv)
   proc = PtyProcessUnicode.spawn(argv, env=env, cwd=cwd)
-  proc_reader = attr(read=lambda: f'{proc.readline()[:-2]}\n')
+  proc_reader = attr(readline=lambda: f'{proc.readline()[:-2]}\n')
   out = StringIO()
   stdout.append(out)
   try:
