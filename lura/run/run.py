@@ -7,7 +7,7 @@ from getpass import getpass
 from io import StringIO
 from lura import formats, logs
 from lura.attrs import attr, ottr, wttr
-from lura.io import LogWriter, Tee, flush, tee
+from lura.io import Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
 from lura.sudo import popen as sudo_popen
 from lura.utils import scrub
@@ -22,7 +22,8 @@ def is_non_str_sequence(obj):
 def log_context(log, level=logs.NOISE):
   if not log.isEnabledFor(level):
     return
-  lines = formats.yaml.dumps(scrub(dict(run.context())))
+  scrubbed = scrub(dict(run.context()))
+  lines = (f'{k}: {v}' for (k, v) in scrubbed.items())
   logs.lines(log, level, lines, prefix='    ')
 
 class Info:
@@ -55,9 +56,8 @@ class Info:
     file.write(self.format(fmt=fmt))
     flush(file)
 
-  def log(self, logger, level='DEBUG', fmt='yaml'):
-    log = getattr(logger, level.lower())
-    logs.lines(log, self.format(fmt=fmt))
+  def log(self, log, level, fmt='yaml'):
+    logs.lines(log, level, self.format(fmt=fmt))
 
 class Result(Info):
   'Returned by run().'
@@ -65,12 +65,12 @@ class Result(Info):
   def __init__(self, *args):
     super().__init__(*args)
 
-class Error(Exception, Info):
+class Error(Info, Exception):
   'Raised by run().'
 
   def __init__(self, *args):
     Info.__init__(self, *args)
-    msg = f'Process exited with code {self.code}: {self.cmd})'
+    msg = f'Process exited with code {self.code}: {self.cmd}'
     Exception.__init__(self, msg)
 
 def _run_stdio(proc, cmd, argv, stdout, stderr):
@@ -78,11 +78,13 @@ def _run_stdio(proc, cmd, argv, stdout, stderr):
   out, err = StringIO(), StringIO()
   stdout.append(out)
   stderr.append(err)
+  threads = (Tee(proc.stdout, stdout), Tee(proc.stderr, stderr))
   try:
-    for thread in (Tee(proc.stdout, stdout), Tee(proc.stderr, stderr)):
-      thread.join()
     return run.result(cmd, argv, proc.wait(), out.getvalue(), err.getvalue())
   finally:
+    for thread in threads:
+      thread.stop()
+      thread.join()
     proc.kill()
     out.close()
     err.close()
