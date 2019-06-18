@@ -93,7 +93,7 @@ def _run_popen(cmd, argv, env, cwd, shell, stdout, stderr, **kwargs):
   log.noise('_run_popen()')
   proc = subp_popen(
     cmd if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
-    stderr=PIPE, text=True)
+    stderr=PIPE, encoding='utf-8')
   return _run_stdio(proc, cmd, argv, stdout, stderr)
 
 def _run_pty(cmd, argv, env, cwd, shell, stdout, **kwargs):
@@ -125,7 +125,7 @@ def _run_sudo(
   log.noise('_run_sudo()')
   proc = sudo_popen(
     cmd if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
-    stderr=PIPE, text=True, sudo_user=sudo_user, sudo_group=sudo_group,
+    stderr=PIPE, encoding='utf-8', sudo_user=sudo_user, sudo_group=sudo_group,
     sudo_password=sudo_password, sudo_login=sudo_login,
     sudo_timeout=sudo_timeout)
   return _run_stdio(proc, cmd, argv, stdout, stderr)
