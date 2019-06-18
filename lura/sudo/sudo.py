@@ -153,8 +153,7 @@ def _popen():
   tls.env['SUDO_ASKPASS'] = tls.askpass_path
   proc = subp.Popen(
     _sudo_argv(), env=tls.env, cwd=tls.cwd, stdin=tls.stdin,
-    stdout=tls.stdout, stderr=tls.stderr, encoding=tls.encoding,
-    text=tls.text)
+    stdout=tls.stdout, stderr=tls.stderr, encoding=tls.encoding)
   try:
     _wait_for_sudo()
   except Exception:
@@ -190,7 +189,6 @@ def popen(
     tls.stdout = stdout
     tls.stderr = stderr
     tls.encoding = encoding
-    tls.text = text
     tls.user = sudo_user
     tls.group = sudo_group
     tls.login = sudo_login

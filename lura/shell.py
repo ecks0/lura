@@ -3,8 +3,9 @@ import subprocess as subp
 from subprocess import PIPE
 from shutil import which
 
-def sh(argv):
-  proc = subp.Popen(argv, stdout=PIPE, stderr=PIPE, shell=True, text=True)
+def sh(argv, encoding='utf-8'):
+  proc = subp.Popen(
+    argv, stdout=PIPE, stderr=PIPE, shell=True, encoding=encoding)
   try:
     return proc.communicate()
   finally:
