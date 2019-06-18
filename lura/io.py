@@ -1,6 +1,10 @@
 import os
 import stat
+from distutils.dir_util import copy_tree
+from lura import logs
 from pathlib import Path
+
+log = logs.get_logger('lura.io')
 
 def isfifo(path):
   return stat.S_ISFIFO(os.stat(path).st_mode)
@@ -36,8 +40,8 @@ def flush(file):
 
 def _tee(source, targets, cond):
   while cond():
-    data = source.read()
-    if len(data) == 0:
+    data = source.readline()
+    if len(data) == '':
       break
     for target in targets:
       target.write(data)
@@ -63,36 +67,46 @@ class LineCallbackWriter:
 
   def __init__(self):
     super().__init__()
+    self._log('__init__()')
     self.buf = []
 
+  def _log(self, msg):
+    log.noise(f'{type(self).__name__}.{msg}')
+
   def callback(self, lines):
+    self._log('callback()')
     for line in lines:
       print(line)
 
   def write(self, data):
+    self._log(f'write({len(data)})')
     if '\n' not in data:
-      buf.append(data)
+      self.buf.append(data)
       return
     line_end, extra = data.rsplit('\n', 1)
     self.buf.append(line_end)
     lines = ''.join(self.buf).split('\n')
-    buf.clear()
+    self.buf.clear()
     if extra:
       self.buf.append(extra)
     self.callback(lines)
 
   def writelines(self, lines):
+    self._log(f'writelines({len(lines)})')
     return self.write(''.join(lines))
 
 class LogWriter(LineCallbackWriter):
 
-  def __init__(self, log, level='DEBUG', tag=None):
+  def __init__(self, log, level, tag=None):
     super().__init__()
-    self.name = name
+    self.tag = tag
+    if isinstance(level, int):
+      level = logs.get_level_name(level)
     self.log = getattr(log, level.lower())
 
   def callback(self, lines):
+    self._log(f'callback({len(lines)})')
     for line in lines:
       if self.tag:
-        line = f'{tag} {line}'
+        line = f'{self.tag} {line}'
       self.log(line)
