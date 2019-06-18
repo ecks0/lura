@@ -41,7 +41,7 @@ class Expander:
     pass
 
   @abstractmethod
-  def expandf(self, env, tmpl, dst):
+  def expandf(self, env, tmpl, dst, encoding=None):
     '''
     Expand a template to a file.
 
@@ -53,8 +53,7 @@ class Expander:
     '''
     pass
 
-  @abstractmethod
-  def expandfs(self, env, src):
+  def expandfs(self, env, src, encoding=None):
     '''
     Expand a template file to a string.
 
@@ -63,10 +62,11 @@ class Expander:
     :returns: The expanded template.
     :rtype: str
     '''
-    pass
+    with open(src, 'r', encoding=encoding) as fd:
+      tmpl = fd.read()
+    return self.expands(env, tmpl)
 
-  @abstractmethod
-  def expandff(self, env, src, dst):
+  def expandff(self, env, src, dst, encoding=None):
     '''
     Expand a template file to another file.
 
@@ -76,4 +76,6 @@ class Expander:
     :returns: True if dst file was written
     :rtype bool:
     '''
-    pass
+    with open(src, 'r', encoding=encoding) as fd:
+      tmpl = fd.read()
+    self.expandf(env, tmpl, dst, encoding=encoding)
