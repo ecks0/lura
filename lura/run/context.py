@@ -141,6 +141,13 @@ class Shell(Context):
     super().__init__(autosetvars)
     self.shell = True
 
+class Env(Context):
+
+  def __init__(self, env):
+    autosetvars = ('env',)
+    super().__init__(autosetvars)
+    self.env = env
+
 class Stdio(Context):
 
   def __init__(self, stdout, stderr=[], excl=False):
