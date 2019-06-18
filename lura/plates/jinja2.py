@@ -1,7 +1,6 @@
 import jinja2 as jinja2_
 import os
-from lura.tmpl.base import Expander
-from lura.io import dump
+from lura.plates.base import Expander
 
 class Jinja2(Expander):
   '''
@@ -45,7 +44,7 @@ class Jinja2(Expander):
     '''
     return self.engine.from_string(tmpl).render(env)
 
-  def expandf(self, env, tmpl, dst):
+  def expandf(self, env, tmpl, dst, encoding=None):
     '''
     Expand a template to a file.
 
@@ -55,6 +54,7 @@ class Jinja2(Expander):
     :returns: True if dst file was written
     :rtype bool:
     '''
-    dump(dst, self.engine.from_string(tmpl).render(env))
+    with open(dst, 'w', encoding=encoding) as fd:
+      fd.write(self.engine.from_string(tmpl).render(env))
 
 jinja2 = Jinja2()

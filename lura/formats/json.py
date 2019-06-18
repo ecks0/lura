@@ -1,7 +1,6 @@
 import json
 from lura.attrs import ottr
 from lura.formats.base import Format
-from lura.io import dump
 
 class Json(Format):
   '''
@@ -51,7 +50,8 @@ class Json(Format):
     'Write dict ``data`` as json to file ``dst``.'
 
     data = json.dumps(data, indent=self.indent, cls=self.Encoder)
-    return dump(dst, data, encoding=encoding)
+    with open(dst, 'w', encoding=encoding) as fd:
+      fd.write(data)
 
   def dumpfd(self, fd, data):
     'Write dict ``data`` as json to file descriptor ``fd``.'

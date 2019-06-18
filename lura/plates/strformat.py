@@ -1,5 +1,4 @@
-from lura.tmpl.base import Expander
-from lura.io import dump
+from lura.plates.base import Expander
 
 class StrFormat(Expander):
   'Expand templates using str.format().'
@@ -18,7 +17,7 @@ class StrFormat(Expander):
     '''
     return tmpl.format(**env)
 
-  def expandf(self, env, tmpl, dst):
+  def expandf(self, env, tmpl, dst, encoding=None):
     '''
     Expand a template to a file.
 
@@ -28,6 +27,7 @@ class StrFormat(Expander):
     :returns: True if dst file was written
     :rtype bool:
     '''
-    dump(dst, tmpl.format(**env))
+    with open(dst, 'w', encoding=encoding) as fd:
+      fd.write(tmpl.format(**env))
 
 strformat = StrFormat()

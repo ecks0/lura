@@ -1,5 +1,4 @@
-from lura.tmpl.base import Expander
-from lura.io import dump
+from lura.plates.base import Expander
 
 class FString(Expander):
   'Expand templates as f-strings.'
@@ -18,7 +17,7 @@ class FString(Expander):
     '''
     return eval("f'''{}'''".format(tmpl.replace("'''", "\\'\\'\\'")), env)
 
-  def expandf(self, env, tmpl, dst):
+  def expandf(self, env, tmpl, dst, encoding=None):
     '''
     Expand a template to a file.
 
@@ -27,6 +26,8 @@ class FString(Expander):
     :param str dst: destination file path
     :returns: True if dst file was written
     '''
-    dump(dst, self.expands(env, tmpl))
+    with open(dst, 'w', encoding=encoding) as fd:
+      fd.write(self.expands(env, tmpl))
+
 
 fstring = FString()

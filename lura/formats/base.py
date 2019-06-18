@@ -2,7 +2,6 @@ import os
 import sys
 from abc import abstractmethod
 from lura.hash import hashs
-from lura.io import dump
 from lura.utils import merge
 
 class Format:
@@ -16,7 +15,7 @@ class Format:
     pass
 
   @abstractmethod
-  def loadf(self, src, encoding='utf-8'):
+  def loadf(self, src, encoding=None):
     pass
 
   @abstractmethod
@@ -28,21 +27,19 @@ class Format:
     pass
 
   @abstractmethod
-  def dumpf(self, dst, data, encoding='utf-8'):
+  def dumpf(self, dst, data, encoding=None):
     pass
 
   @abstractmethod
   def dumpfd(self, fd, data):
     pass
 
-  def mergef(self, path, patch, encoding='utf-8'):
+  def mergef(self, path, patch, encoding=None):
     '''
     Merge data into an existing file.
 
     :param dict patch: data to merge
     :param str path: path to file containing data to load and merge with patch
-    :return: True if the contents of path were updated
-    :rtype bool:
 
     1. Read ``path`` file contents into data dict
     2. Merge ``patch`` into data dict
@@ -59,9 +56,10 @@ class Format:
     merged_hash = hashs(merged_str)
     if data_hash == merged_hash:
       return False
-    return dump(path, merged_str, encoding=encoding)
+    with open(path, 'w', encoding=encoding) as fd:
+      write(merged_str)
 
-  def mergeff(self, path, patch, encoding='utf-8'):
+  def mergeff(self, path, patch, encoding=None):
     'Merge data from file patch into data at file path.'
 
     return self.mergef(self.loads(patch), path, encoding=encoding)

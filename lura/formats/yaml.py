@@ -2,7 +2,6 @@ import yaml
 from lura.attrs import ottr
 from lura.formats import myaml
 from lura.formats.base import Format
-from lura.io import dump
 
 class DictLoaderMixin:
   'Yaml loader mixin which uses a user-defined dict type.'
@@ -133,7 +132,8 @@ class Yaml(Format):
   def dumpf(self, dst, data, encoding=None):
     'Write dict ``data`` as yaml to file ``dst`` using ``encoding``.'
 
-    return dump(dst, myaml.dump(data), encoding=encoding)
+    with open(dst, 'w', encoding=encoding) as fd:
+      fd.write(myaml.dump(data))
 
   def dumpfd(self, fd, data):
     'Write dict ``data`` as yaml to file descriptor ``fd``.'
