@@ -1,6 +1,7 @@
 import shlex
 import subprocess as subp
 from subprocess import PIPE
+from shutil import which
 
 def sh(argv):
   proc = subp.Popen(argv, stdout=PIPE, stderr=PIPE, shell=True, text=True)
