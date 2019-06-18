@@ -65,7 +65,13 @@ class Logging:
 
     # More verbose.
     debug = (
-      '%(run_time)-12.3f %(short_name)15s %(short_levelname)s %(message)s',
+      '%(run_time)-8.3f %(short_name)19s %(short_levelname)s %(message)s',
+      '%Y-%m-%d %H:%M:%S',
+    ),
+
+    # More verbose and longer field width.
+    debuglong = (
+      '%(run_time)-12.3f %(name)25s %(short_levelname)s %(message)s',
       '%Y-%m-%d %H:%M:%S',
     ),
 
@@ -128,7 +134,8 @@ class Logging:
     logging.config.dictConfig(self.config)
 
   def config_levels(self):
-    self.add_level('NOISE', 5, ':')
+    if 'NOISE' not in logging._levelToName.values():
+      self.add_level('NOISE', 5, ':')
 
   def config_environment(self):
     if self.level_envvar in os.environ:
@@ -205,7 +212,11 @@ class Logging:
     return logging._levelToName[number]
 
   def add_level(self, name, number, short_name=None):
-    assert(not hasattr(logging.Logger, name.lower()))
+    if number in logging._levelToName.keys():
+      msg = 'Log level number {} already used by {}'
+      raise ValueError(msg.format(number, self.get_level_name(number)))
+    elif name in logging._levelToName.values():
+      raise ValueError(f'Log level name {name} already in use')
     logging.addLevelName(number, name)
     setattr(logging, name, number)
     setattr(type(self), name, number)
@@ -285,9 +296,3 @@ class Logging:
       lines = lines.rstrip().split('\n')
     for line in lines:
       fn(f'{prefix}{line}', *args, **kwargs)
-
-logs = Logging(
-  std_logger = __name__.split('.')[0],
-  std_format = Logging.formats.bare[0],
-  std_datefmt = Logging.formats.bare[1],
-)
