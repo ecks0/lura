@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from lura import logs
 from lura.attrs import attr
+from lura.io import LogWriter
 from lura.utils import scrub
 from .run import run, is_non_str_sequence, log_context
 
@@ -133,10 +134,17 @@ class Cwd(Context):
     super().__init__(autosetvars)
     self.cwd = cwd
 
+class Shell(Context):
+
+  def __init__(self):
+    autosetvars = ('shell',)
+    super().__init__(autosetvars)
+    self.shell = True
+
 class Stdio(Context):
 
   def __init__(self, stdout, stderr=[], excl=False):
-    autosetvars = [('stdio', not excl)]
+    autosetvars = [('stdout', not excl)]
     if stderr or excl:
       autosetvars.append(('stderr', not excl))
     super().__init__(autosetvars)
@@ -147,8 +155,8 @@ class Log(Stdio):
 
   def __init__(self, log, level='DEBUG', excl=False):
     super().__init__(
-      LogWriter(log, level, '[stdout]'),
-      LogWriter(log, level, '[stderr]'),
+      LogWriter(log, level, '[out]'),
+      LogWriter(log, level, '[err]'),
       excl,
     )
 
