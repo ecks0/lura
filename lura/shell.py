@@ -17,4 +17,8 @@ def shell_path():
 def whoami():
   return sh('whoami')[0].strip()
 
+def hostname():
+  import platform
+  return platform.node()
+
 shjoin = subp.list2cmdline
