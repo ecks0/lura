@@ -5,7 +5,7 @@ import threading
 from collections.abc import Sequence
 from getpass import getpass
 from io import StringIO
-from lura import formats, logs
+from lura import LuraError, formats, logs
 from lura.attrs import attr, ottr, wttr
 from lura.io import Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
@@ -26,22 +26,18 @@ def log_context(log, level=logs.NOISE):
   lines = (f'{k}: {v}' for (k, v) in scrubbed.items())
   logs.lines(log, level, lines, prefix='    ')
 
-class Info:
-  'Base class for Error and Result.'
+class Result:
+  'Returned by run().'
 
-  members = ('cmd', 'argv', 'code', 'stdout', 'stderr')
+  members = ('args', 'argv', 'code', 'stdout', 'stderr')
 
-  def __init__(self, *args):
+  def __init__(self, args, argv, code, stdout, stderr):
     super().__init__()
-    if len(args) == 1 and isinstance(args[0], Info):
-      for _ in self.members:
-        setattr(self, _, getattr(args[0], _))
-    elif len(args) == len(self.members):
-      for i in range(len(self.members)):
-        setattr(self, self.members[i], args[i])
-    else:
-      msg = f'Invalid arguments, expected {self.members}, got {args}'
-      raise ValueError(msg)
+    self.args = args
+    self.argv = argv
+    self.code = code
+    self.stdout = stdout
+    self.stderr = stderr
 
   def as_dict(self, type=ottr):
     return type(((name, getattr(self, name)) for name in self.members))
@@ -59,28 +55,22 @@ class Info:
   def log(self, log, level, fmt='yaml'):
     logs.lines(log, level, self.format(fmt=fmt))
 
-class Result(Info):
-  'Returned by run().'
+class Error(LuraError):
+  'Raised by run on unexpected exit code.'
 
-  def __init__(self, *args):
-    super().__init__(*args)
+  def __init__(self, result):
+    msg = f'Process exited with code {result.code}: {result.args}'
+    super().__init__(msg)
+    self.result = result
 
-class Error(Info, Exception):
-  'Raised by run().'
-
-  def __init__(self, *args):
-    Info.__init__(self, *args)
-    msg = f'Process exited with code {self.code}: {self.cmd}'
-    Exception.__init__(self, msg)
-
-def _run_stdio(proc, cmd, argv, stdout, stderr):
+def _run_stdio(proc, args, argv, stdout, stderr):
   log.noise('_run_stdio()')
   out, err = StringIO(), StringIO()
   stdout.append(out)
   stderr.append(err)
   threads = (Tee(proc.stdout, stdout), Tee(proc.stderr, stderr))
   try:
-    return run.result(cmd, argv, proc.wait(), out.getvalue(), err.getvalue())
+    return run.result(args, argv, proc.wait(), out.getvalue(), err.getvalue())
   finally:
     for thread in threads:
       thread.stop()
@@ -89,18 +79,18 @@ def _run_stdio(proc, cmd, argv, stdout, stderr):
     out.close()
     err.close()
 
-def _run_popen(cmd, argv, env, cwd, shell, stdout, stderr, **kwargs):
+def _run_popen(args, argv, env, cwd, shell, stdout, stderr, **kwargs):
   log.noise('_run_popen()')
   proc = subp_popen(
-    cmd if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
+    args if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
     stderr=PIPE, encoding='utf-8')
-  return _run_stdio(proc, cmd, argv, stdout, stderr)
+  return _run_stdio(proc, args, argv, stdout, stderr)
 
-def _run_pty(cmd, argv, env, cwd, shell, stdout, **kwargs):
+def _run_pty(args, argv, env, cwd, shell, stdout, **kwargs):
   log.noise('_run_pty()')
   if shell:
-    argv = [run.default_shell, '-c', cmd]
-    cmd = shjoin(argv)
+    argv = [run.default_shell, '-c', args]
+    args = shjoin(argv)
   proc = PtyProcessUnicode.spawn(argv, env=env, cwd=cwd)
   proc_reader = attr(readline=lambda: f'{proc.readline()[:-2]}\n')
   out = StringIO()
@@ -110,7 +100,7 @@ def _run_pty(cmd, argv, env, cwd, shell, stdout, **kwargs):
       tee(proc_reader, stdout)
     except EOFError:
       pass
-    return run.result(cmd, argv, proc.wait(), out.getvalue(), '')
+    return run.result(args, argv, proc.wait(), out.getvalue(), '')
   finally:
     try:
       proc.kill(9)
@@ -119,16 +109,16 @@ def _run_pty(cmd, argv, env, cwd, shell, stdout, **kwargs):
     out.close()
 
 def _run_sudo(
-  cmd, argv, env, cwd, shell, stdout, stderr, sudo_user, sudo_group,
+  args, argv, env, cwd, shell, stdout, stderr, sudo_user, sudo_group,
   sudo_password, sudo_login, sudo_timeout, **kwargs
 ):
   log.noise('_run_sudo()')
   proc = sudo_popen(
-    cmd if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
+    args if shell else argv, env=env, cwd=cwd, shell=shell, stdout=PIPE,
     stderr=PIPE, encoding='utf-8', sudo_user=sudo_user, sudo_group=sudo_group,
     sudo_password=sudo_password, sudo_login=sudo_login,
     sudo_timeout=sudo_timeout)
-  return _run_stdio(proc, cmd, argv, stdout, stderr)
+  return _run_stdio(proc, args, argv, stdout, stderr)
 
 def lookup(name):
   log.noise(f'lookup({name})')
@@ -176,12 +166,12 @@ def run(argv, **kwargs):
   if kwargs.mode not in modes:
     raise ValueError(f"Invalid mode '{kwargs.mode}'. Valid modes: {modes}")
   if isinstance(argv, str):
-    cmd = argv
-    argv = shlex.split(cmd)
+    args = argv
+    argv = shlex.split(args)
   else:
-    cmd = shjoin(argv)
+    args = shjoin(argv)
   run_real = globals()[f'_run_{kwargs.mode}']
-  result = run_real(cmd, argv, **kwargs)
+  result = run_real(args, argv, **kwargs)
   if kwargs.enforce is True and result.code != kwargs.enforce_code:
     raise run.error(result)
   log.noise('run() returns with context:')
