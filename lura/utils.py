@@ -80,13 +80,29 @@ class ObjectProxy:
 
   def __init__(self, target):
     super().__init__()
-    self._proxied_object = target
+    self.__target__ = target
 
   def __getattr__(self, name):
-    if hasattr(self._proxied_object, name):
-      return getattr(self._proxied_object, name)
+    if hasattr(self.__target__, name):
+      return getattr(self.__target__, name)
     err = f"'{type(self).__name__}' object has no attribute '{k}'"
     raise AttributeError(err)
+
+class MultiObjectProxy:
+  def __init__(self, targets):
+    super().__init__()
+    self.__targets__ = targets
+
+  def build_dispatch(self, name):
+    def dispatch(*args, **kwargs):
+      return [
+        getattr(target, name)(*args, **kwargs)
+        for target in self.__targets__
+      ]
+    return dispatch
+
+  def __getattr__(self, name):
+    return self.build_dispatch(name)
 
 def scrub(obj, tag='[scrubbed]'):
   from collections.abc import MutableMapping, Sequence
