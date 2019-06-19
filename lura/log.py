@@ -6,7 +6,7 @@ import types
 from collections import defaultdict
 from logging import NOTSET, DEBUG, INFO, WARNING, WARN, ERROR, CRITICAL, FATAL
 from lura.attrs import attr
-from lura.utils import asbool
+from lura.utils import MultiObjectProxy, asbool
 
 class ExtraInfoFilter(logging.Filter):
   '''
@@ -296,3 +296,8 @@ class Logging:
       lines = lines.rstrip().split('\n')
     for line in lines:
       fn(f'{prefix}{line}', *args, **kwargs)
+
+  def multilog(self, *loggers):
+    'Log messages to multiple loggers.'
+
+    return MultiObjectProxy([_ for _ in loggers if _])
