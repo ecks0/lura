@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.3.8'
+version          = '0.3.9'
 author           = 'eckso'
 author_email     = 'eckso@eckso.io'
 url              = 'https://github.com/ecks0/lura'
