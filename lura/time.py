@@ -3,8 +3,6 @@ from lura.iter import BufferedIterator, forever
 
 class Timer:
 
-  format_precision = 10
-
   def __init__(self, start=False):
     super().__init__()
     self.begin = None
@@ -40,8 +38,8 @@ class Timer:
       raise ValueError('Timer not started')
     return (now if self.end is None else self.end) - self.begin
 
-  def format(self):
-    return f'%0.{self.format_precision}f' % self.time
+  def format(self, precision=10):
+    return f'%0.{precision}f' % self.time
 
   def print(self, **kwargs):
     print(self.format(), **kwargs)
