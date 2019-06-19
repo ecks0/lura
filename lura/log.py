@@ -132,6 +132,8 @@ class Logging:
   def config_logging(self):
     self.config = self.build_config()
     logging.config.dictConfig(self.config)
+    for level, name in logging._levelToName.items():
+      setattr(logging.Logger, name, level)
 
   def config_levels(self):
     if 'NOISE' not in logging._levelToName.values():
@@ -219,6 +221,7 @@ class Logging:
       raise ValueError(f'Log level name {name} already in use')
     logging.addLevelName(number, name)
     setattr(logging, name, number)
+    setattr(logging.Logger, name, number)
     setattr(type(self), name, number)
     setattr(
       logging.Logger, name.lower(), self.build_logger_log_method(number))
