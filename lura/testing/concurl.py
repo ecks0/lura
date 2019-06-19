@@ -3,10 +3,9 @@ import sys
 import time
 from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout
 from collections.abc import Mapping, Sequence
+from lura import logs
 from lura.attrs import attr
-from lura.io import slurp
 from lura.threads import pool
-from statistics import mean
 
 def Request(endpoint, type, headers, data):
   return attr(
@@ -21,6 +20,8 @@ def Result(id, request, response, start, end):
   return attr(id=id, request=request, response=response, start=start, end=end)
 
 class ConCurl:
+
+  log = logs.get_logger('algotool.concurl')
 
   def __init__(
     self,
@@ -67,7 +68,7 @@ class ConCurl:
 
   def build_request(self, id):
     endpoint = self.build_request_endpoint(id=id)
-    type = self.build_request_type(id=id, endpoint=self.endpoint)
+    type = self.build_request_type(id=id, endpoint=endpoint)
     headers = self.build_request_headers(id=id, endpoint=endpoint, type=type)
     data = self.build_request_data(
       id=id, endpoint=endpoint, type=type, headers=headers)
@@ -128,6 +129,3 @@ class ConCurl:
     if self.print_dots:
       print()
     return start, time.time(), results
-
-def concurl(*args, **kwargs):
-  return ConCurl(*args, **kwargs).run()
