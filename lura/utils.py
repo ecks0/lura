@@ -118,3 +118,12 @@ def scrub(obj, tag='[scrubbed]'):
         if isinstance(value, MutableMapping):
           scrub(value)
   return obj
+
+def common(data, count=None):
+  'Return the count most common values found in list data.'
+
+  counts = ((data.count(value), value) for value in set(data))
+  common = sorted(counts, reverse=True)
+  if count is None:
+    return common
+  return common[:min(len(data), count)]
