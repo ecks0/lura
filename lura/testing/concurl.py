@@ -165,15 +165,17 @@ class ConCurl:
     times = args.times = attr()
     names = ('mean', 'harmonic_mean', 'median')
     if args.res_times:
-      for stat in names:
-        times[stat] = getattr(stats, stat)(args.res_times)
-      times.common = common([int(_) for _ in args.res_times])
-      times.common_high = times.common[:min(len(times.common), 6)]
-      times.common_low = reversed(times.common[-min(len(times.common), 6):])
+      times.mean = stats.mean(args.res_times)
+      times.median = stats.median(args.res_times)
+      times.frequency = common([int(_) for _ in args.res_times])
+      times.common = times.frequency[:min(len(times.frequency), 6)]
+      times.uncommon = times.frequency[-min(len(times.frequency), 6):]
     else:
-      for stat in names:
-        times[stat] = 0.0
+      times.mean = 0.0
+      times.median = 0.0
+      times.frequency = [(0, 0)]
       times.common = [(0, 0)]
+      times.uncommon = [(0, 0)]
     return args
 
   def run(self):
