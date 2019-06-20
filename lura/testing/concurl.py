@@ -1,4 +1,5 @@
 import requests
+import statistics as stats
 import sys
 import time
 from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout
@@ -6,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from lura import logs
 from lura.attrs import attr
 from lura.threads import pool
-from statistics import mean
+from lura.utils import common
 
 class ConCurl:
 
@@ -34,6 +35,7 @@ class ConCurl:
     self.request_count = 10 if request_count is None else request_count
     self.response_timeout = 5 if response_timeout is None else response_timeout
     self.print_dots = True if print_dots is None else print_dots
+    self.column = 0
 
   def parse_request_headers(self, request_headers):
     if isinstance(request_headers, Mapping):
@@ -78,6 +80,30 @@ class ConCurl:
   def build_requests(self):
     return ((id, self.build_request(id)) for id in range(self.request_count))
 
+  def print_dot(self, code, exc):
+    if not self.print_dots:
+      return
+    if code == 200 and exc is None:
+      c = '.'
+    elif code != 200 and exc is None:
+      c = '!'
+    elif isinstance(exc, ConnectTimeout):
+      c = 'c'
+    elif isinstance(exc, ReadTimeout):
+      c = 'r'
+    elif isinstance(exc, Timeout):
+      c = 't'
+    elif exc:
+      c = 'x'
+    else:
+      c = '?'
+    endl = ''
+    self.column += 1
+    if self.column == 80:
+      endl = '\n'
+      self.column = 0
+    print(c, end=endl, flush=True)
+
   def request(self, request):
     headers = code = text = exc_info = exc = None
     start = time.time()
@@ -95,22 +121,7 @@ class ConCurl:
       end = time.time() if end is None else end
       exc_info = sys.exc_info()
       exc = _
-    if self.print_dots:
-      if code == 200 and exc is None:
-        c = '.'
-      elif code != 200 and exc is None:
-        c = '!'
-      elif isinstance(exc, ConnectTimeout):
-        c = 'c'
-      elif isinstance(exc, ReadTimeout):
-        c = 'r'
-      elif isinstance(exc, Timeout):
-        c = 't'
-      elif exc:
-        c = 'x'
-      else:
-        c = '?'
-      print(c, end='', flush=True)
+    self.print_dot(code, exc)
     return self.new_response(headers, code, text, exc_info, start, end)
 
   def test(self, args):
@@ -151,18 +162,29 @@ class ConCurl:
     args.res_times = [
       res.response.end - res.response.start for res in args.res_200
     ]
-    args.time_mean = mean(args.res_times) if args.res_times else 0.0
-    args.time_min = min(args.res_times) if args.res_times else 0.0
-    args.time_max = max(args.res_times) if args.res_times else 0.0
+    times = args.times = attr()
+    names = ('mean', 'harmonic_mean', 'median')
+    if args.res_times:
+      for stat in names:
+        times[stat] = getattr(stats, stat)(args.res_times)
+      times.common = common([int(_) for _ in args.res_times])
+      times.common_high = times.common[:min(len(times.common), 6)]
+      times.common_low = reversed(times.common[-min(len(times.common), 6):])
+    else:
+      for stat in names:
+        times[stat] = 0.0
+      times.common = [(0, 0)]
     return args
 
   def run(self):
     start = time.time()
     if self.print_dots:
+      self.column = 0
       print(
         '.=200 !=Not 200 c/r/t=Connect/Read/Other timeout x=Exception ' + \
         '?=Unknown error')
-    results = pool.map(self.thread_count, self.test, self.build_requests())
+    thread_count = min(self.thread_count, self.request_count)
+    results = pool.map(thread_count, self.test, self.build_requests())
     end = time.time()
     if self.print_dots:
       print(flush=True)
