@@ -4,7 +4,7 @@ from distutils.dir_util import copy_tree
 from lura import logs
 from pathlib import Path
 
-log = logs.get_logger('lura.io')
+log = logs.get_logger(__name__)
 
 def isfifo(path):
   return stat.S_ISFIFO(os.stat(path).st_mode)

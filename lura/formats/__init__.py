@@ -17,9 +17,6 @@ ext = attr(
   yml = yaml,
 )
 
-def for_ext(e):
-  return ext[e.lower()]
-
 del attr
 
 def loadf(src, encoding=None):

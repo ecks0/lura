@@ -4,7 +4,7 @@ from lura import logs
 
 class Hooks:
 
-  log = logs.get_logger(f'{__module__}.Hooks')
+  log = logs.get_logger(__name__)
 
   def __init__(
     self,

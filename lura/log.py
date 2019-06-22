@@ -37,6 +37,20 @@ class ExtraInfoFilter(logging.Filter):
     record.run_time = time.time() - self.initialized
     return True
 
+class MultiLogger(MultiObjectProxy):
+
+  NOTSET = logging.NOTSET
+  DEBUG = logging.DEBUG
+  INFO = logging.INFO
+  WARNING = logging.WARNING
+  WARN = logging.WARN
+  ERROR = logging.ERROR
+  CRITICAL = logging.CRITICAL
+  FATAL = logging.FATAL
+
+  def __init__(self, loggers):
+    super().__init__(loggers)
+
 class Logging:
 
   NOTSET = logging.NOTSET
@@ -222,6 +236,7 @@ class Logging:
     logging.addLevelName(number, name)
     setattr(logging, name, number)
     setattr(logging.Logger, name, number)
+    setattr(MultiLogger, name, number)
     setattr(type(self), name, number)
     setattr(
       logging.Logger, name.lower(), self.build_logger_log_method(number))
@@ -303,4 +318,4 @@ class Logging:
   def multilog(self, *loggers):
     'Log messages to multiple loggers.'
 
-    return MultiObjectProxy([_ for _ in loggers if _])
+    return MultiLogger([_ for _ in loggers if _])

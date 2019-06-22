@@ -8,7 +8,7 @@ from .run import run, is_non_str_sequence, log_context
 class Context:
   'Base class for run contexts.'
 
-  log = logs.get_logger('lura.run.Context')
+  log = logs.get_logger(__name__)
 
   @classmethod
   def _log_context(cls):
@@ -79,7 +79,7 @@ class Context:
 
     self._log('cleanup()')
     if not all(_ in (None, []) for _ in self.context.values()):
-      self.log.info('run.context is not empty at run.Context cleanup')
+      self.log.debug('run.context is not empty at run.Context cleanup')
       self._log_context()
     self.context.clear()
 

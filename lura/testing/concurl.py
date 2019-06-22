@@ -9,9 +9,9 @@ from lura.attrs import attr
 from lura.threads import pool
 from lura.utils import common
 
-class ConCurl:
+log = logs.get_logger(__name__)
 
-  log = logs.get_logger('algotool.concurl')
+class ConCurl:
 
   def __init__(
     self,
@@ -155,6 +155,7 @@ class ConCurl:
         not isinstance(res.response.exc_info[1], Timeout)
     ]
     args.res_bad = args.res_not_200 + args.res_exc
+    args.res_num = len(args.res)
     args.res_num_succeeded = len(args.res_200)
     args.res_num_failed = len(args.res_not_200)
     args.res_num_timeouts = len(args.res_timeouts)
