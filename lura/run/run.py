@@ -10,7 +10,7 @@ from lura.attrs import attr, ottr, wttr
 from lura.io import Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
 from lura.sudo import popen as sudo_popen
-from lura.utils import scrub
+from lura.utils import UtilityString, scrub
 from ptyprocess import PtyProcessUnicode
 from subprocess import PIPE, Popen as subp_popen
 
@@ -36,8 +36,8 @@ class Result:
     self.args = args
     self.argv = argv
     self.code = code
-    self.stdout = stdout
-    self.stderr = stderr
+    self.stdout = UtilityString(stdout)
+    self.stderr = UtilityString(stderr)
 
   def as_dict(self, type=ottr):
     return type(((name, getattr(self, name)) for name in self.members))
@@ -54,6 +54,9 @@ class Result:
 
   def log(self, log, level, fmt='yaml'):
     logs.lines(log, level, self.format(fmt=fmt))
+
+  def pipe(self, **kwargs):
+    return self.stdout.pipe(**kwargs)
 
 class Error(LuraError):
   'Raised by run on unexpected exit code.'
