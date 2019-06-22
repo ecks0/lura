@@ -76,34 +76,6 @@ def import_object(spec):
   mod, type = spec.rsplit('.', 1)
   return getattr(__import__(mod), type)
 
-class ObjectProxy:
-
-  def __init__(self, target):
-    super().__init__()
-    self.__target__ = target
-
-  def __getattr__(self, name):
-    if hasattr(self.__target__, name):
-      return getattr(self.__target__, name)
-    err = f"'{type(self).__name__}' object has no attribute '{k}'"
-    raise AttributeError(err)
-
-class MultiObjectProxy:
-  def __init__(self, targets):
-    super().__init__()
-    self.__targets__ = targets
-
-  def build_dispatch(self, name):
-    def dispatch(*args, **kwargs):
-      return [
-        getattr(target, name)(*args, **kwargs)
-        for target in self.__targets__
-      ]
-    return dispatch
-
-  def __getattr__(self, name):
-    return self.build_dispatch(name)
-
 def scrub(obj, tag='[scrubbed]'):
   from collections.abc import MutableMapping, Sequence
   for name, value in obj.items():
@@ -127,3 +99,52 @@ def common(data, count=None):
   if count is None:
     return common
   return common[:min(len(data), count)]
+
+class DynamicProxy:
+  'Dispatch one method call to a list of object instances.'
+
+  def __init__(self, targets):
+    super().__init__()
+    self.__targets__ = targets
+
+  def build_dispatch(self, name):
+    def dispatch(*args, **kwargs):
+      return [
+        getattr(target, name)(*args, **kwargs)
+        for target in self.__targets__
+      ]
+    return dispatch
+
+  def __getattr__(self, name):
+    return self.build_dispatch(name)
+
+class UtilityString(str):
+  'Subclass of string offering extra operations.'
+
+  def lines(self):
+    'Strip right newlines and return a split on newline.'
+
+    return self.rstrip('\n').split('\n')
+
+  def json(self):
+    'Parse as a json object.'
+
+    from lura.formats import json
+    return json.loads(self)
+
+  def jsons(self):
+    'Parse as a sequence of json objects, one per line.'
+
+    from lura.formats import json
+    return [json.loads(blob) for line in self.lines()]
+
+  def yaml(self):
+    'Parse as a yaml object.'
+
+    from lura.formats import yaml
+    return yaml.loads(self)
+
+  def pipe(self, **kwargs):
+    'Spawn a process and write this object to the process stdin.'
+
+    raise NotImplementedError()

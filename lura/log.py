@@ -6,7 +6,7 @@ import types
 from collections import defaultdict
 from logging import NOTSET, DEBUG, INFO, WARNING, WARN, ERROR, CRITICAL, FATAL
 from lura.attrs import attr
-from lura.utils import MultiObjectProxy, asbool
+from lura.utils import DynamicProxy, asbool
 
 class ExtraInfoFilter(logging.Filter):
   '''
@@ -37,7 +37,7 @@ class ExtraInfoFilter(logging.Filter):
     record.run_time = time.time() - self.initialized
     return True
 
-class MultiLogger(MultiObjectProxy):
+class MultiLogger(DynamicProxy):
 
   NOTSET = logging.NOTSET
   DEBUG = logging.DEBUG
