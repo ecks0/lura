@@ -11,12 +11,7 @@ long_description              = open('README.md').read()
 long_description_content_type = 'text/markdown'
 
 python_requires  = ">= 3.6"
-install_requires = [
-  'Jinja2 >= 2.10',
-  'PyYAML >= 3.13',
-  'cryptography >= 2.7',
-  'ptyprocess >= 0.6.0',
-]
+install_requires = open('requirements.txt').read().strip().split('\n')
 
 setup(
   name = name,
