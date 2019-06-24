@@ -55,6 +55,18 @@ class Result:
   def log(self, log, level, fmt='yaml'):
     logs.lines(log, level, self.format(fmt=fmt))
 
+  def lines(self):
+    return self.stdout.lines()
+
+  def json(self):
+    return self.stdout.json()
+
+  def jsons(self):
+    return self.stdout.jsons()
+
+  def yaml(self):
+    return self.stdout.yaml()
+
   def pipe(self, **kwargs):
     return self.stdout.pipe(**kwargs)
 
