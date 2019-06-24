@@ -29,13 +29,13 @@ class Msgpack(Format):
 
     return msgpack.packb(data)
 
-  def dumpf(self, dst, data, encoding=None):
+  def dumpf(self,data, dst, encoding=None):
     'Write dict ``data`` as msgpack to file ``dst``.'
 
     with open(dst, mode='wb', encoding=encoding) as fd:
       self.dumpfd(fd, data)
 
-  def dumpfd(self, fd, data):
+  def dumpfd(self, data, fd):
     'Write dict ``data`` as msgpack to file descriptor ``fd``.'
 
     msgpack.pack(data, fd)

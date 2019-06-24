@@ -27,11 +27,11 @@ class Format:
     pass
 
   @abstractmethod
-  def dumpf(self, dst, data, encoding=None):
+  def dumpf(self, data, dst, encoding=None):
     pass
 
   @abstractmethod
-  def dumpfd(self, fd, data):
+  def dumpfd(self, data, fd):
     pass
 
   def mergef(self, path, patch, encoding=None):

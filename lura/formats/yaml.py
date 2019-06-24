@@ -129,13 +129,13 @@ class Yaml(Format):
 
     return myaml.dump(data)
 
-  def dumpf(self, dst, data, encoding=None):
+  def dumpf(self, data, dst, encoding=None):
     'Write dict ``data`` as yaml to file ``dst`` using ``encoding``.'
 
     with open(dst, 'w', encoding=encoding) as fd:
       fd.write(myaml.dump(data))
 
-  def dumpfd(self, fd, data):
+  def dumpfd(self, data, fd):
     'Write dict ``data`` as yaml to file descriptor ``fd``.'
 
     fd.write(self.dumps(data))

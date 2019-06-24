@@ -46,14 +46,14 @@ class Json(Format):
 
     return json.dumps(data, indent=self.indent, cls=self.Encoder)
 
-  def dumpf(self, dst, data, encoding=None):
+  def dumpf(self, data, dst, encoding=None):
     'Write dict ``data`` as json to file ``dst``.'
 
     data = json.dumps(data, indent=self.indent, cls=self.Encoder)
     with open(dst, 'w', encoding=encoding) as fd:
       fd.write(data)
 
-  def dumpfd(self, fd, data):
+  def dumpfd(self, data, fd):
     'Write dict ``data`` as json to file descriptor ``fd``.'
 
     fd.write(self.dumps(data))
