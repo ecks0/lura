@@ -41,7 +41,7 @@ def resolve(module):
     log.noise(f'resolve({module}) __file__ missing')
     return None
   mod_dir = os.path.dirname(module.__file__)
-  mod_name = module.__name__.split('.')[0]
+  mod_name = module.__name__.split('.')[-1]
   log.noise(f'resolve({module}) __file__ -> {module.__file__}')
   log.noise(f'resolve({module}) __name__ -> {module.__name__}')
   log.noise(f'resolve({module}) mod_dir -> {mod_dir}')
