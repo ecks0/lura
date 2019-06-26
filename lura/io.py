@@ -80,12 +80,12 @@ class LineCallbackWriter:
 
   def write(self, data):
     self._log(f'write({len(data)})')
-    if '\n' not in data:
+    if os.linesep not in data:
       self.buf.append(data)
       return
-    line_end, extra = data.rsplit('\n', 1)
+    line_end, extra = data.rsplit(os.linesep, 1)
     self.buf.append(line_end)
-    lines = ''.join(self.buf).split('\n')
+    lines = ''.join(self.buf).splitlines()
     self.buf.clear()
     if extra:
       self.buf.append(extra)

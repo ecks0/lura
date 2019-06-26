@@ -182,9 +182,9 @@ class UnsafePrettyYAMLDumper(PrettyYAMLDumper):
 		dstyle = dumper.pyaml_string_val_style
 		style = dstyle or 'plain'
 		#if '\n' in data or not data or data == '-' or data[0] in '!&*[':
-		if '\n' in data or not data or data == '-' or data[0] in '!&*':
+		if os.linesep in data or not data or data == '-' or data[0] in '!&*':
 			style = dstyle or 'literal'
-			if '\n' in data[:-1]:
+			if os.linesep in data[:-1]:
 				style = '|'
 			# if '\n' in data[:-1]:
 			# 	for line in data.splitlines():
