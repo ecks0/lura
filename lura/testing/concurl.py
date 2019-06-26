@@ -111,7 +111,7 @@ class ConCurl:
     try:
       call = getattr(requests, request.type.lower())
       response = call(
-        request.endpoint, headers=request.headers, json=request.data,
+        request.endpoint, headers=request.headers, data=request.data,
         timeout=self.response_timeout)
       end = time.time()
       headers = response.headers
