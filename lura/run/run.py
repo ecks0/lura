@@ -10,7 +10,7 @@ from lura.attrs import attr, ottr, wttr
 from lura.io import Tee, flush, tee
 from lura.shell import shell_path, shjoin, whoami
 from lura.sudo import popen as sudo_popen
-from lura.utils import UtilityString, scrub
+from lura.utils import StrUtil, scrub
 from ptyprocess import PtyProcessUnicode
 from subprocess import PIPE, Popen as subp_popen
 
@@ -23,8 +23,9 @@ def log_context(log, level=logs.NOISE):
   if not log.isEnabledFor(level):
     return
   scrubbed = scrub(dict(run.context()))
-  lines = (f'{k}: {v}' for (k, v) in scrubbed.items())
-  logs.lines(log, level, lines, prefix='    ')
+  lines = os.linesep.join(f'    {k}: {v}' for (k, v) in scrubbed.items())
+  fn = getattr(log, logs.get_level_name(level).lower())
+  fn(lines)
 
 class Result:
   'Returned by run().'
@@ -36,8 +37,8 @@ class Result:
     self.args = args
     self.argv = argv
     self.code = code
-    self.stdout = UtilityString(stdout)
-    self.stderr = UtilityString(stderr)
+    self.stdout = StrUtil(stdout)
+    self.stderr = StrUtil(stderr)
 
   def as_dict(self, type=ottr):
     return type(((name, getattr(self, name)) for name in self.members))
@@ -53,7 +54,8 @@ class Result:
     flush(file)
 
   def log(self, log, level, fmt='yaml'):
-    logs.lines(log, level, self.format(fmt=fmt))
+    fn = getattr(log, logs.get_level_name(level).lower())
+    fn(self.format(fmt=fmt))
 
   def lines(self):
     return self.stdout.lines()

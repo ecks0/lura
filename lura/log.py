@@ -4,6 +4,7 @@ import os
 import time
 import types
 from collections import defaultdict
+from io import StringIO
 from logging import NOTSET, DEBUG, INFO, WARNING, WARN, ERROR, CRITICAL, FATAL
 from lura.attrs import attr
 from lura.utils import DynamicProxy, asbool
@@ -50,6 +51,25 @@ class MultiLogger(DynamicProxy):
 
   def __init__(self, loggers):
     super().__init__(loggers)
+
+class MultiLineFormatter(logging.Formatter):
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+  def format(self, record):
+    if os.linesep not in record.msg:
+      record.message = super().format(record)
+      return record.message
+    msg = record.msg
+    with StringIO() as buf:
+      for line in record.msg.split(os.linesep):
+        record.msg = line
+        buf.write(super().format(record) + os.linesep)
+      record.message = buf.getvalue().rpartition(os.linesep)[0]
+      #record.message = buf.getvalue().rstrip(os.linesep)
+    record.msg = msg
+    return record.message
 
 class Logging:
 
@@ -163,14 +183,14 @@ class Logging:
       handler = self.add_file_handler(file, level=level, append=append)
       handler.set_name(self.log_envvar)
       fmt = os.environ.get(self.format_envvar, 'verbose').lower()
-      handler.setFormatter(logging.Formatter(*self.formats[fmt]))
+      handler.setFormatter(MultiLineFormatter(*self.formats[fmt]))
 
   def build_config(self):
     import yaml
     config = yaml.safe_load(f'''
       version: 1
       filters:
-        short_name:
+        short_name: {{}}
       formatters:
         standard:
           format: '{self.std_format}'
@@ -186,7 +206,8 @@ class Logging:
           handlers: ['stderr']
           level: INFO
     ''')
-    config['filters']['short_name'] = {'()': ExtraInfoFilter}
+    config['filters']['short_name']['()'] = ExtraInfoFilter
+    config['formatters']['standard']['()'] = MultiLineFormatter
     return config
 
   def build_logger_log_method(self, level):
@@ -250,7 +271,7 @@ class Logging:
     '''
     logger = self.std_logger if logger is None else logger
     logger = self.get_logger(logger)
-    formatter = logging.Formatter(format, datefmt)
+    formatter = MultiLineFormatter(format, datefmt)
     for _ in logger.handlers:
       if _.get_name() == self.log_envvar:
         continue
@@ -282,7 +303,7 @@ class Logging:
       if isinstance(level, str):
         level = getattr(self, level)
       handler.setLevel(level)
-    formatter = logging.Formatter(*self.formats.verbose)
+    formatter = MultiLineFormatter(*self.formats.verbose)
     handler.setFormatter(formatter)
     handler.addFilter(ExtraInfoFilter())
     self.get_logger(logger).addHandler(handler)
@@ -297,21 +318,6 @@ class Logging:
     '''
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).removeHandler(handler)
-
-  def lines(self, log, level, lines, prefix='', *args, **kwargs):
-    if isinstance(level, str):
-      name = level.lower()
-      number = getattr(self, name.upper())
-    else:
-      name = self.get_level_name(level).lower()
-      number = level
-    if not log.isEnabledFor(number):
-      return
-    fn = getattr(log, name)
-    if isinstance(lines, str):
-      lines = lines.rstrip().split('\n')
-    for line in lines:
-      fn(f'{prefix}{line}', *args, **kwargs)
 
   def multilog(self, *loggers):
     'Log messages to multiple loggers.'
