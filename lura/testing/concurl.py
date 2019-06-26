@@ -2,14 +2,81 @@ import requests
 import statistics as stats
 import sys
 import time
+import traceback
 from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from lura import logs
-from lura.attrs import attr
+from lura.formats import yaml
+from lura.attrs import attr, ottr
 from lura.threads import pool
 from lura.utils import common
 
 log = logs.get_logger(__name__)
+
+class Base(ottr):
+
+  def __init__(self):
+    super().__init__()
+
+  def format(self, prefix=''):
+    name = type(self).__name__.lower()
+    text = yaml.dumps({name: self})
+    if not prefix:
+      return text
+    res = os.linesep.join(
+      f'{prefix}{line}' for line in text.rstrip(os.linesep).splitlines()
+    )
+    print(repr(res))
+    return res
+
+  def print(self, prefix='', *args, **kwargs):
+    print(self.format(prefix), *args, **kwargs)
+
+class Request(Base):
+
+  def __init__(self, endpoint, type, headers, data):
+    super().__init__()
+    self.endpoint = endpoint
+    self.type = type
+    self.headers = headers
+    self.data = data
+
+class Response(Base):
+
+  def __init__(self, headers, code, text, exc_info, start, end):
+    super().__init__()
+    self.headers = headers
+    self.code = code
+    self.text = text
+    self.exc_info = exc_info
+    if exc_info is not None:
+      exc_info = ottr(
+        type = '{}.{}'.format(exc_info[0].__module__, exc_info[0].__name__),
+        value = repr(exc_info[1]),
+        traceback = ''.join(traceback.format_exception(*exc_info)),
+      )
+    self.exc_info = exc_info
+    self.start = start
+    self.end = end
+
+class Result(Base):
+
+  def __init__(self, id, request, response, start, end):
+    super().__init__()
+    self.id = id
+    self.request = request
+    self.response = response
+    self.start = start
+    self.end = end
+
+class ResultSet(Base):
+
+  def __init__(self, results, start, end):
+    super().__init__()
+    self.results = results
+    self.start = start
+    self.end = end
 
 class ConCurl:
 
@@ -45,18 +112,6 @@ class ConCurl:
     else:
       raise ValueError(f'Type not supported: {request_headers}')
 
-  def new_request(self, endpoint, type, headers, data):
-    return attr(
-      endpoint=endpoint, type=type, headers=headers, data=data)
-
-  def new_response(self, headers, code, text, exc_info, start, end):
-    return attr(
-      headers=headers, code=code, text=text, exc_info=exc_info, start=start,
-      end=end)
-
-  def new_result(self, id, request, response, start, end):
-    return attr(id=id, request=request, response=response, start=start, end=end)
-
   def build_request_endpoint(self, *args, **kwargs):
     return self.endpoint
 
@@ -75,10 +130,19 @@ class ConCurl:
     headers = self.build_request_headers(id=id, endpoint=endpoint, type=type)
     data = self.build_request_data(
       id=id, endpoint=endpoint, type=type, headers=headers)
-    return self.new_request(endpoint, type, headers, data)
+    return self.Request(endpoint, type, headers, data)
 
   def build_requests(self):
     return ((id, self.build_request(id)) for id in range(self.request_count))
+
+  def build_request_call_args(self, request):
+    args = (request.endpoint,)
+    kwargs = dict(
+      headers = request.headers,
+      timeout = self.response_timeout,
+      data = request.data
+    )
+    return args, kwargs
 
   def print_dot(self, code, exc):
     if not self.print_dots:
@@ -100,7 +164,7 @@ class ConCurl:
     endl = ''
     self.column += 1
     if self.column == 80:
-      endl = '\n'
+      endl = os.linesep
       self.column = 0
     print(c, end=endl, flush=True)
 
@@ -109,12 +173,13 @@ class ConCurl:
     start = time.time()
     end = None
     try:
-      call = getattr(requests, request.type.lower())
-      response = call(
-        request.endpoint, headers=request.headers, data=request.data,
-        timeout=self.response_timeout)
+      action = request.type.lower()
+      call = getattr(requests, action)
+      args, kwargs = self.build_request_call_args(request)
+      log.noise(f'request() {action}(*{args} **{kwargs})')
+      response = call(*args, **kwargs)
       end = time.time()
-      headers = response.headers
+      headers = dict(response.headers)
       code = response.status_code
       text = response.text
     except Exception as _:
@@ -122,15 +187,16 @@ class ConCurl:
       exc_info = sys.exc_info()
       exc = _
     self.print_dot(code, exc)
-    return self.new_response(headers, code, text, exc_info, start, end)
+    return self.Response(headers, code, text, exc_info, start, end)
 
   def test(self, args):
     start = time.time()
     id, request = args
     response = self.request(request)
-    return self.new_result(id, request, response, start, time.time())
+    return self.Result(id, request, response, start, time.time())
 
-  def handle_results(self, start, end, results):
+  def handle_results(self, results):
+    start, end, results = results.start, results.end, results.results
     args = attr()
     args.start = start
     args.end = end
@@ -147,12 +213,12 @@ class ConCurl:
     args.res_timeouts = [
       res for res in results
       if res.response.exc_info is not None and
-        isinstance(res.response.exc_info[1], Timeout)
+        res.response.exc_info.type.endswith('Timeout') # FIXME
     ]
     args.res_exc = [
       res for res in results
       if res.response.exc_info is not None and
-        not isinstance(res.response.exc_info[1], Timeout)
+        not res.response.exc_info.type.endswith('Timeout') # FIXME
     ]
     args.res_bad = args.res_not_200 + args.res_exc
     args.res_num = len(args.res)
@@ -191,4 +257,8 @@ class ConCurl:
     end = time.time()
     if self.print_dots:
       print(flush=True)
-    return self.handle_results(start, end, results)
+    return self.handle_results(ResultSet(results, start, end))
+
+ConCurl.Request = Request
+ConCurl.Response = Response
+ConCurl.Result = Result
