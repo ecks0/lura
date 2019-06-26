@@ -1,3 +1,4 @@
+import os
 import types
 from lura.attrs import attr
 from collections import MutableMapping, MutableSequence
@@ -118,13 +119,13 @@ class DynamicProxy:
   def __getattr__(self, name):
     return self.build_dispatch(name)
 
-class UtilityString(str):
+class StrUtil(str):
   'Subclass of string offering extra operations.'
 
   def lines(self):
     'Strip right newlines and return a split on newline.'
 
-    return self.rstrip('\n').split('\n')
+    return self.rstrip(os.linesep).splitlines()
 
   def json(self):
     'Parse as a json object.'
@@ -144,7 +145,14 @@ class UtilityString(str):
     from lura.formats import yaml
     return yaml.loads(self)
 
+  def prefix(self, prefix):
+    'Return self with each line prefixed with `prefix`.'
+
+    return os.linesep.join(f'{prefix}{line}' for line in self.split(os.linesep))
+
   def pipe(self, **kwargs):
     'Spawn a process and write this object to the process stdin.'
 
     raise NotImplementedError()
+
+strutil = StrUtil

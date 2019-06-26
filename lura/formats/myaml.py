@@ -69,6 +69,8 @@ class PrettyYAMLDumper(yaml.dumper.SafeDumper):
 			return dumper.represent_dict(data)
 		elif callable(getattr(data, 'tolist', None)):
 			return dumper.represent_data(data.tolist())
+		elif isinstance(data, str):
+			return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
 		else:
 			return super(PrettyYAMLDumper, dumper).represent_undefined(data)
 
@@ -113,6 +115,7 @@ class PrettyYAMLDumper(yaml.dumper.SafeDumper):
 					self.anchor_node(key)
 					self.anchor_node(value, hint=hint+[key])
 
+from lura.utils import StrUtil
 PrettyYAMLDumper.add_representer(defaultdict, PrettyYAMLDumper.represent_dict)
 PrettyYAMLDumper.add_representer(OrderedDict, PrettyYAMLDumper.represent_odict)
 PrettyYAMLDumper.add_representer(set, PrettyYAMLDumper.represent_list)
