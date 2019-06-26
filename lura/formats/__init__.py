@@ -1,14 +1,17 @@
 from .json import Json
 from .pickle import Pickle
 from .yaml import Yaml
+from .csv import Csv
 
 json = Json()
 pickle = Pickle()
 yaml = Yaml()
+csv = Csv()
 
 from lura.attrs import attr
 
 ext = attr(
+  csv = csv,
   jsn = json,
   json = json,
   pickle = pickle,
