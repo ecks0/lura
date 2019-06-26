@@ -32,7 +32,7 @@ class Pickle(Format):
     'Write dict ``data`` as pickle to file ``dst``.'
 
     with open(dst, mode='wb', encoding=encoding) as fd:
-      self.dumpfd(fd, data)
+      self.dumpfd(data, fd)
 
   def dumpfd(self, data, fd):
     'Write dict ``data`` as pickle to file descriptor ``fd``.'
