@@ -166,9 +166,8 @@ class Logging:
       handler.setFormatter(logging.Formatter(*self.formats[fmt]))
 
   def build_config(self):
-    from lura.formats import yaml
-    config = yaml.loads(
-      f'''
+    import yaml
+    config = yaml.safe_load(f'''
       version: 1
       filters:
         short_name:
@@ -186,9 +185,8 @@ class Logging:
         {self.std_logger}:
           handlers: ['stderr']
           level: INFO
-      '''
-    )
-    config.filters.short_name = {'()': ExtraInfoFilter}
+    ''')
+    config['filters']['short_name'] = {'()': ExtraInfoFilter}
     return config
 
   def build_logger_log_method(self, level):
