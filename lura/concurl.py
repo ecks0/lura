@@ -1,3 +1,4 @@
+import os
 import requests
 import statistics as stats
 import sys
