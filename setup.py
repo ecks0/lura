@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.3.15'
+version          = '0.3.16'
 author           = 'eckso'
 author_email     = 'eckso@eckso.io'
 url              = 'https://github.com/ecks0/lura'
@@ -11,7 +11,7 @@ long_description              = open('README.md').read()
 long_description_content_type = 'text/markdown'
 
 python_requires  = ">= 3.6"
-install_requires = open('requirements.txt').read().strip().split('\n')
+install_requires = open('requirements.txt').read().strip().splitlines()
 
 setup(
   name = name,
