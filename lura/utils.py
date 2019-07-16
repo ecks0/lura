@@ -7,8 +7,8 @@ from distutils.util import strtobool
 
 def isexc(o):
   '''
-  ``True`` if ``o`` is a tuple as returned by ``sys.exc_info()``, else
-  ``False``.
+  `True` if `o` is a tuple as returned by `sys.exc_info()`, else
+  `False`.
   '''
 
   return isinstance(o, tuple) and len(o) == 3 and (
@@ -18,7 +18,7 @@ def isexc(o):
   )
 
 def asbool(val):
-  'Turn something (including strings via ``strtobool``) into a ``bool``.'
+  'Turn something (including strings via `strtobool`) into a `bool`.'
 
   if val == '':
     return False
@@ -73,11 +73,9 @@ def merge(a, b):
   a.update(b)
   return a
 
-def import_object(spec):
-  mod, type = spec.rsplit('.', 1)
-  return getattr(__import__(mod), type)
-
 def scrub(obj, tag='[scrubbed]'):
+  'Scrub anything that looks like a password in `MutableMapping` `obj`.'
+
   from collections.abc import MutableMapping, Sequence
   for name, value in obj.items():
     if isinstance(value, str) and 'pass' in name.lower():
@@ -123,7 +121,7 @@ class StrUtil(str):
   'Subclass of string offering extra operations.'
 
   def lines(self):
-    'Strip right newlines and return a split on newline.'
+    'Strip right newlines and return a split on `os.linesep`.'
 
     return self.rstrip(os.linesep).splitlines()
 

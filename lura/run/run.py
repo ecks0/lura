@@ -73,7 +73,7 @@ class Result:
     return self.stdout.pipe(**kwargs)
 
 class Error(LuraError):
-  'Raised by run on unexpected exit code.'
+  'Raised by `run()` on unexpected exit code.'
 
   def __init__(self, result):
     msg = f'Process exited with code {result.code}: {result.args}'
@@ -109,7 +109,7 @@ def _run_pty(args, argv, env, cwd, shell, stdout, **kwargs):
     argv = [run.default_shell, '-c', args]
     args = shjoin(argv)
   proc = PtyProcessUnicode.spawn(argv, env=env, cwd=cwd)
-  proc_reader = attr(readline=lambda: f'{proc.readline()[:-2]}\n')
+  proc_reader = attr(readline=lambda: f'{proc.readline()[:-2]}{os.linesep}')
   out = StringIO()
   stdout.append(out)
   try:
