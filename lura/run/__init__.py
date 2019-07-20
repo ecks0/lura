@@ -1,4 +1,5 @@
 from .run import run
+from .run import RunError
 from .context import Context
 from .context import Quash
 from .context import Enforce
