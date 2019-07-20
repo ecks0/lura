@@ -72,7 +72,7 @@ class Result:
   def pipe(self, **kwargs):
     return self.stdout.pipe(**kwargs)
 
-class Error(LuraError):
+class RunError(LuraError):
   'Raised by `run()` on unexpected exit code.'
 
   def __init__(self, result):
@@ -223,7 +223,7 @@ run.sudo = run_sudo
 
 # results
 run.result = Result
-run.error = Error
+run.error = RunError
 
 # misc
 run.getsudopass = getsudopass
