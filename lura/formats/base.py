@@ -51,7 +51,7 @@ class Format:
       return self.dumpf(patch, path, encoding=encoding)
     data = self.loadf(path)
     data_hash = hashs(self.dumps(data))
-    merged = merge(data, patch)
+    merged = merge(patch, data)
     merged_str = self.dumps(merged)
     merged_hash = hashs(merged_str)
     if data_hash == merged_hash:
