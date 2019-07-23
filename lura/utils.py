@@ -52,7 +52,7 @@ def remap(src, cls=attr):
     raise ValueError(f'src must be MutableSequence or MutableMapping: {src}')
 
 def merge(src, dst):
-  'Merge two dicts.'
+  'Destructively merge two dicts.'
 
   Merger(*merge.spec).merge(dst, src)
   return dst
