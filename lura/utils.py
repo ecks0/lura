@@ -1,10 +1,9 @@
 import os
 import types
+from lura.attrs import attr
 from collections import MutableMapping, MutableSequence
 from copy import deepcopy
-from deepmerge import Merger
 from distutils.util import strtobool
-from lura.attrs import attr
 
 def isexc(o):
   '''
@@ -51,17 +50,28 @@ def remap(src, cls=attr):
   else:
     raise ValueError(f'src must be MutableSequence or MutableMapping: {src}')
 
-def merge(src, dst):
-  'Destructively merge two dicts.'
+def merge(a, b):
+  'Merge two MutableMappings.'
 
-  Merger(*merge.spec).merge(dst, src)
-  return dst
-
-merge.spec = (
-  [(dict, ["merge"])],
-  ["override"],
-  ["override"],
-)
+  assert(isinstance(a, MutableMapping))
+  assert(isinstance(b, MutableMapping))
+  if not (a or b):
+    return type(b)()
+  if not a:
+    return deepcopy(b)
+  if not b:
+    return deepcopy(a)
+  a = a.copy()
+  b = b.copy()
+  for k, v in a.items():
+    if (
+      isinstance(v, MutableMapping) and
+      k in b and
+      isinstance(b[k], MutableMapping)
+    ):
+      b[k] = merge(v, b[k])
+  a.update(b)
+  return a
 
 def scrub(obj, tag='[scrubbed]'):
   'Scrub anything that looks like a password in `MutableMapping` `obj`.'
