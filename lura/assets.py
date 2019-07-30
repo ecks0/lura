@@ -29,6 +29,7 @@ class Install:
 import os
 import inspect
 import types
+import builtins
 from importlib import import_module
 from lura import logs, plates
 
@@ -98,11 +99,11 @@ path.resolve = resolve
 
 def open(obj, name, mode, encoding=None):
   log.noise(f'open({obj}, {mode}, encoding={encoding})')
-  return open(path(obj, name), mode=mode, encoding=encoding)
+  return builtins.open(path(obj, name), mode=mode, encoding=encoding)
 
 def slurp(obj, name, mode, encoding=None):
   log.noise(f'slurp({obj}, {name}, {mode}, encoding={encoding})')
-  with open(path(obj, name), mode=mode, encoding=encoding) as fd:
+  with builtins.open(path(obj, name), mode=mode, encoding=encoding) as fd:
     return fd.read()
 
 def loadf(obj, name, encoding=None):
