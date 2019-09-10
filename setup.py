@@ -1,15 +1,13 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.3.17'
-author           = 'eckso'
-author_email     = 'eckso@eckso.io'
+version          = '0.4.0'
+author           = 'Nick Zigarovich'
+author_email     = 'nick@zigarovich.io'
 url              = 'https://github.com/ecks0/lura'
 description      = 'syntactic sugar'
-
-long_description              = open('README.md').read()
+long_description = open('README.md').read()
 long_description_content_type = 'text/markdown'
-
 python_requires  = ">= 3.6"
 install_requires = open('requirements.txt').read().strip().splitlines()
 
