@@ -28,7 +28,7 @@ def systemctl(cmd, args, opts, enforce=True, log_level=None):
     return run(argv, enforce=enforce)
 
 systemctl.bin = 'systemctl'
-systemctl.log_level = log.INFO
+systemctl.log_level = log.DEBUG
 
 def journalctl(args, opts, log_level=None):
   log.noise(f'journalctl({args}, {opts})')

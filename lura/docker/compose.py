@@ -34,7 +34,7 @@ def docker_compose(cmd, file=None, args=[], opts={}, cwd=None):
     return run(argv, cwd=cwd)
 
 docker_compose.bin = 'docker-compose'
-docker_compose.log_level = log.INFO
+docker_compose.log_level = log.DEBUG
 
 def pull(*args, file=None, cwd=None, **opts):
   docker_compose('pull', file, args, opts, cwd)

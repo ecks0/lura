@@ -34,7 +34,7 @@ def docker(cmd, args=[], opts={}, cwd=None, enforce=True):
     return run(argv, cwd=cwd, enforce=enforce)
 
 docker.bin = 'docker'
-docker.log_level = log.INFO
+docker.log_level = log.DEBUG
 
 def build(*args, cwd=None, **opts):
   docker('build', args, opts, cwd)

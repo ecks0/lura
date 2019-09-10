@@ -36,7 +36,7 @@ class Assets:
   def list(self, path, long=False):
     files = pkg_resources.resource_listdir(self.package, self.path(path))
     if long:
-      return [self.join(path, file) for file in files]
+      files = [self.join(path, file) for file in files]
     return files
 
   def exists(self, path):

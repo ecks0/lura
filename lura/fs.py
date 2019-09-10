@@ -75,10 +75,8 @@ def make_parent_dirs(path):
 def isfifo(path):
   return stat.S_ISFIFO(os.stat(path).st_mode)
 
-def touch(path, mode=384):
+def touch(path, mode=0o600):
   Path(path).touch(mode=mode)
 
 def fext(path):
-  if '.' in path:
-    return path.rsplit('.', 1)[1]
-  raise ValueError(f'File has no extension: {path}')
+  return path.rsplit('.', 1)[1] if '.' in path else None
