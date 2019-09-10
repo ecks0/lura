@@ -1,6 +1,6 @@
 from string import Template
 from lura.plates.base import Expander
-from lura.io import dump
+from lura.fs import dump
 
 class StringTemplate(Expander):
   'Expand templates using string.Template().'

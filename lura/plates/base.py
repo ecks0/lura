@@ -1,25 +1,5 @@
 from abc import abstractmethod
 
-class BoundExpander:
-  'Bind an expander to an environment.'
-
-  def __init__(self, expander, env):
-    super().__init__()
-    self.expander = expander
-    self.env = env
-
-  def expands(self, tmpl):
-    return self.expander.expands(self.env, tmpl)
-
-  def expandf(self, tmpl, dst):
-    return self.expander.expandf(self.env, tmpl, dst)
-
-  def expandfs(self, src):
-    return self.expander.expandfs(self.env, src)
-
-  def expandff(self, src, dst):
-    return self.expander.expandff(self.env, src, dst)
-
 class Expander:
 
   def __init__(self, *args, **kwargs):
@@ -79,3 +59,23 @@ class Expander:
     with open(src, 'r', encoding=encoding) as fd:
       tmpl = fd.read()
     self.expandf(env, tmpl, dst, encoding=encoding)
+
+class BoundExpander:
+  'Bind an expander to an environment.'
+
+  def __init__(self, expander, env):
+    super().__init__()
+    self.expander = expander
+    self.env = env
+
+  def expands(self, tmpl):
+    return self.expander.expands(self.env, tmpl)
+
+  def expandf(self, tmpl, dst):
+    return self.expander.expandf(self.env, tmpl, dst)
+
+  def expandfs(self, src):
+    return self.expander.expandfs(self.env, src)
+
+  def expandff(self, src, dst):
+    return self.expander.expandff(self.env, src, dst)

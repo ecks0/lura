@@ -3,7 +3,7 @@ import sys
 import subprocess as subp
 import threading
 from lura import logs
-from lura.io import dump, mkfifo, slurp
+from lura.fs import dump, slurp
 from lura.shell import shell_path, shjoin
 from lura.time import Timer
 from tempfile import TemporaryDirectory
@@ -60,7 +60,7 @@ def _check_ok():
 
 def _make_fifo():
   log.noise('_make_fifo()')
-  mkfifo(tls.fifo_path)
+  os.mkfifo(tls.fifo_path)
 
 def _open_fifo():
   log.noise('_open_fifo()')
