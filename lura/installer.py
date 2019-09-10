@@ -44,9 +44,9 @@ class Installer:
 
   def create_directory(self, dir):
     if os.path.isdir(dir):
-      log.info(f'  {dir} (exists)')
+      log.info(f'    {dir} (exists)')
     else:
-      log.info(f'  {dir}')
+      log.info(f'    {dir}')
       os.makedirs(dir)
 
   def create_directories(self):
@@ -57,9 +57,9 @@ class Installer:
 
   def copy_file(self, src, dst):
     if os.path.exists(dst) or os.path.islink(dst):
-      log.info(f'  {dst} (overwrite)')
+      log.info(f'    {dst} (overwrite)')
     else:
-      log.info(f'  {dst}')
+      log.info(f'    {dst}')
     fs.copy(src, dst)
 
   def copy_files(self):
@@ -70,9 +70,9 @@ class Installer:
 
   def copy_asset(self, src, dst):
     if os.path.exists(dst) or os.path.islink(dst):
-      log.info(f'  {dst} (overwrite)')
+      log.info(f'    {dst} (overwrite)')
     else:
-      log.info(f'  {dst}')
+      log.info(f'    {dst}')
     self.assets.copy(src, dst)
 
   def copy_assets(self):
@@ -83,9 +83,9 @@ class Installer:
 
   def expand_template_file(self, env, src, dst):
     if os.path.exists(dst) or os.path.islink(dst):
-      log.info(f'  {dst} (overwrite)')
+      log.info(f'    {dst} (overwrite)')
     else:
-      log.info(f'  {dst}')
+      log.info(f'    {dst}')
     jinja2.expandff(env, src, dst)
 
   def expand_template_files(self):
@@ -97,9 +97,9 @@ class Installer:
 
   def expand_template_asset(self, env, src, dst):
     if os.path.exists(dst) or os.path.islink(dst):
-      log.info(f'  {dst} (overwrite)')
+      log.info(f'    {dst} (overwrite)')
     else:
-      log.info(f'  {dst}')
+      log.info(f'    {dst}')
     tmpl = self.assets.loads(src)
     jinja2.expandf(env, tmpl, dst)
 
@@ -112,10 +112,10 @@ class Installer:
 
   def create_symlink(self, src, dst):
     if os.path.islink(dst) or os.path.exists(dst):
-      log.info(f'  {dst} (overwrite)')
+      log.info(f'    {dst} (overwrite)')
       os.unlink(dst)
     else:
-      log.info(f'  {dst}')
+      log.info(f'    {dst}')
     os.symlink(src, dst)
 
   def create_symlinks(self):
@@ -126,10 +126,10 @@ class Installer:
 
   def remove_file(self, path):
     if os.path.exists(path) or os.path.islink(path):
-      log.info(f'  {path}')
+      log.info(f'    {path}')
       os.unlink(path)
     else:
-      log.info(f'  {path} (missing)')
+      log.info(f'    {path} (missing)')
 
   def remove_files(self):
     files = list(reversed(self.install_files))
@@ -140,12 +140,12 @@ class Installer:
   def remove_directory(self, path):
     if os.path.isdir(path):
       if len(os.listdir(path)) > 0:
-        log.warn(f'  {path} (not empty, keeping)')
+        log.warn(f'    {path} (not empty, keeping)')
       else:
-        log.info(f'  {path}')
+        log.info(f'    {path}')
         os.rmdir(path)
     else:
-      log.info(f'  {path} (missing)')
+      log.info(f'    {path} (missing)')
 
   def remove_directories(self):
     dirs = self.get_directories()
