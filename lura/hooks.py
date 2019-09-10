@@ -2,46 +2,45 @@ import sys
 import traceback
 from lura import logs
 
-class Hooks:
+log = logs.get_logger(__name__)
 
-  log = logs.get_logger(__name__)
+class Hooks:
 
   def __init__(
     self,
     hooks = None,
   ):
+    log.noise(f'__init__({self}, {hooks})')
     super().__init__()
-    self.log.noise('__init__()')
     self.hooks = []
     if hooks:
       self.hooks.extend(hooks)
 
   def __iter__(self):
-    self.log.noise('__iter__()')
+    log.noise('__iter__()')
     return self.hooks.__iter__()
 
   def handler(self, source, hook, signal, ev):
-    self.log.noise(f'handler({source}, {signal}, {ev})')
+    log.noise(f'handler({self}, {source}, {signal}, {ev})')
     return getattr(hook, signal, None)
 
   def format_error(self, source, hook, signal, ev):
-    self.log.noise('format_error()')
+    log.noise(f'format_error({self})')
     msg = msg = "Hook '{}' raised exception for signal '{}', event '{}'"
     return msg.format(hook, signal, ev)
 
   def error(self, source, hook, signal, ev):
-    self.log.noise('error()')
-    print(self.format_error(source, hook, signal, ev), file=sys.stderr)
-    traceback.print_exc()
+    log.noise(f'error({self}, {source}, {hook}, {signal}, {ev})')
+    log.exception(self.format_error(source, hook, signal, ev))
 
   def missing(self, source, hook, signal, ev):
-    self.log.noise(f'missing({source}, {hook}, {signal}, {ev})')
+    log.noise(f'missing({self}, {source}, {hook}, {signal}, {ev})')
     # noop
 
   def __getattr__(self, signal):
-    self.log.noise(f'__getattr__({signal})')
+    log.noise(f'__getattr__({self}, {signal})')
     def dispatch(source, ev, *args, **kwargs):
-      self.log.noise(f'dispatch({source}, {ev})')
+      log.noise(f'dispatch({source}, {ev})')
       for hook in self.hooks:
         fn = self.handler(source, hook, signal, ev)
         if not fn:
@@ -54,15 +53,15 @@ class Hooks:
     return dispatch
 
   def add(self, hook):
-    self.log.noise(f'add({hook})')
+    log.noise(f'add({self}, {hook})')
     if hook not in self.hooks:
       self.hooks.append(hook)
 
   def remove(self, hook):
-    self.log.noise(f'remove({hook})')
+    log.noise(f'remove({self}, {hook})')
     if hook in self.hooks:
       self.hooks.remove(hook)
 
   def clear(self):
-    self.log.noise('clear()')
+    log.noise(f'clear({self})')
     self.hooks.clear()
