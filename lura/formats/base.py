@@ -2,7 +2,6 @@ import os
 import sys
 from abc import abstractmethod
 from lura.hash import hashs
-from lura.utils import merge
 
 class Format:
   'Serialize or deserialize data.'
@@ -33,12 +32,6 @@ class Format:
   @abstractmethod
   def dumpfd(self, data, fd):
     pass
-
-  def mergefs(self, path, patch, encoding=None):
-    return merge(self.loadf(path), patch)
-
-  def mergeff(self, path, patch, encoding=None):
-    return merge(self.loadf(path), self.loadf(patch))
 
   def print(self, data, *args, **kwargs):
     print(self.dumps(data).rstrip(), *args, **kwargs)

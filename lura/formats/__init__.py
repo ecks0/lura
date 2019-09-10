@@ -10,7 +10,7 @@ csv = Csv()
 
 from lura.attrs import attr
 
-ext = attr(
+exts = attr(
   csv = csv,
   jsn = json,
   json = json,
@@ -22,18 +22,13 @@ ext = attr(
 
 del attr
 
-def loadf(src, encoding=None):
-  from lura.io import fext
-  format = fext(src).lower()
-  if format in formats:
-    return formats[format].loadf(src, encoding=encoding)
-  msg = "Unsupported extension '.{}' for '{}'; supported: {}"
-  raise ValueError(msg.format(format, src, formats))
+def for_ext(ext):
+  if ext not in exts:
+    raise ValueError(f'No format for file extension: {ext}')
+  return exts[ext]
 
-def dumpf(dst, data, encoding=None):
-  from lura.io import fext
-  format = fext(dst).lower()
-  if format in formats:
-    return formats[format].dumpf(dst, data, encoding=encoding)
-  msg = "Unsupported extension '.{}' for '{}', supported formats: {}"
-  raise ValueError(msg.format(format, src, formats))
+def for_path(path):
+  ext = path.split('.')[-1]
+  if ext not in exts:
+    raise ValueError(f'No format for file extension: {path}')
+  return exts[ext]
