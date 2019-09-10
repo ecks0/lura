@@ -1,3 +1,5 @@
+'Encryption with Fernet.'
+
 from cryptography.fernet import Fernet
 
 def encrypt(data, key=None):
