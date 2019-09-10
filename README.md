@@ -1,22 +1,29 @@
-```
-lura is a collection of helper modules.
+lura is a collection of utility modules.
 
-    attrs: dicts which treat attributes as keys
-   crypto: syntactic sugar for cryptography.fernet
-  formats: a standard api for dealing with json, yaml, etc.
-     hash: syntactic sugar for hashlib
-    hooks: primitive event dispatcher
-       io: syntactic sugar for io activities
-     iter: iterator helpers
-      log: reusable logging configurator and syntactic sugar
-   plates: a standard api for dealing with template systems
-   random: random number helpers
-      run: featureful shell command api supporting popen, ptyprocess, and sudo
-    shell: helpers for working with the shell
-     sudo: popen()-like api for spawning processes with sudo
-  testing: helpers for writing tests
-  threads: syntactic sugar for threads
-     time: time-related helpers
-    trace: call tracing
-    utils: a module for homeless objects
-```
+- assets - syntactic sugar for pkg_resources
+- attrs - dicts which treat attributes as keys
+- concurl - framework for http tests and stressers
+- crypto -  syntactic sugar for cryptography.fernet
+- docker - api for docker cli
+- docker.compose - api for docker-compose cli
+- formats - standard api for dealing with json, yaml, etc.
+- fs - filesystem helpers
+- git - api for git cli
+- hash - syntactic sugar for hashlib
+- hooks - primitive event dispatcher
+- installer - primitive software installer
+- io - io helpers
+- iter - iterator helpers
+- kube - api for kubectl cli
+- log - reusable logging configurator and syntactic sugar
+- plates - standard api for dealing with template systems
+- random - random number helpers
+- rpc - syntactic sugar for rpyc
+- run - shell command api supporting popen, ptyprocess, and sudo
+- shell - helpers for working with the shell
+- sudo - popen()-like api for spawning processes with sudo
+- systemd - api for systemctl and journalctl clis
+- threads - syntactic sugar for threading
+- time - time-related helpers
+- tracing - call tracing helpers
+- utils - a module for homeless objects
