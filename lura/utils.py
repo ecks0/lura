@@ -1,3 +1,5 @@
+'Miscellaneous helpers.'
+
 import os
 import types
 from lura.attrs import attr
@@ -50,29 +52,6 @@ def remap(src, cls=attr):
   else:
     raise ValueError(f'src must be MutableSequence or MutableMapping: {src}')
 
-def merge(a, b):
-  'Merge two MutableMappings.'
-
-  assert(isinstance(a, MutableMapping))
-  assert(isinstance(b, MutableMapping))
-  if not (a or b):
-    return type(b)()
-  if not a:
-    return deepcopy(b)
-  if not b:
-    return deepcopy(a)
-  a = a.copy()
-  b = b.copy()
-  for k, v in a.items():
-    if (
-      isinstance(v, MutableMapping) and
-      k in b and
-      isinstance(b[k], MutableMapping)
-    ):
-      b[k] = merge(v, b[k])
-  a.update(b)
-  return a
-
 def scrub(obj, tag='[scrubbed]'):
   'Scrub anything that looks like a password in `MutableMapping` `obj`.'
 
@@ -99,46 +78,28 @@ def common(data, count=None):
     return common
   return common[:min(len(data), count)]
 
-class DynamicProxy:
-  'Dispatch one method call to a list of object instances.'
-
-  def __init__(self, targets):
-    super().__init__()
-    self.__targets__ = targets
-
-  def build_dispatch(self, name):
-    def dispatch(*args, **kwargs):
-      return [
-        getattr(target, name)(*args, **kwargs)
-        for target in self.__targets__
-      ]
-    return dispatch
-
-  def __getattr__(self, name):
-    return self.build_dispatch(name)
-
 class StrUtil(str):
   'Subclass of string offering extra operations.'
 
   def lines(self):
-    'Strip right newlines and return a split on `os.linesep`.'
+    'Strip this object of right newlines and return a split on `os.linesep`.'
 
     return self.rstrip(os.linesep).splitlines()
 
   def json(self):
-    'Parse as a json object.'
+    'Parse this object as a json object.'
 
     from lura.formats import json
     return json.loads(self)
 
   def jsons(self):
-    'Parse as a sequence of json objects, one per line.'
+    'Parse this object as a sequence of json objects, one per line.'
 
     from lura.formats import json
     return [json.loads(blob) for line in self.lines()]
 
   def yaml(self):
-    'Parse as a yaml object.'
+    'Parse this object as a yaml object.'
 
     from lura.formats import yaml
     return yaml.loads(self)
@@ -152,5 +113,10 @@ class StrUtil(str):
     'Spawn a process and write this object to the process stdin.'
 
     raise NotImplementedError()
+
+  def print(self):
+    'Print this object.'
+
+    print(self)
 
 strutil = StrUtil
