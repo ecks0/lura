@@ -1,111 +1,52 @@
-'''
-`module layout`
-```
-automation/
-  __init__.py
-  __assets__/
-    installer/
-      nginx.conf.j2
-  installer.py
-```
+import sys
+import pkg_resources
 
-`installer.py`
-```
-from lura import assets
-from lura.run import run
-from lura.plates import jinja2
+class Assets:
 
-class Install:
+  @staticmethod
+  def join(*args):
+    return '/'.join(arg.rstrip('/') for arg in args)
 
-  def install(self):
-    run('apt-get install -y nginx')
-    conf_tmpl_path = assets.path(self, 'nginx.conf.j2')
-    env = {'server_name': 'www.funhub.com'}
-    jinja2.expandff(env, conf_tmpl_path, '/etc/nginx/sites-enabled/funhub.com')
-    run('systemctl reload nginx')
-```
-'''
+  def __init__(self, package, prefix=None):
+    super().__init__()
+    self.package = package
+    self.prefix = prefix
 
-import os
-import inspect
-import types
-import builtins
-from importlib import import_module
-from lura import logs, plates
+  def path(self, path):
+    if self.prefix:
+      return self.join(self.prefix, path)
+    return path
 
-log = logs.get_logger(__name__)
+  def load(self, path):
+    return pkg_resources.resource_string(self.package, self.path(path))
 
-def resolve(module):
-  'Return the absolute path to the assets directory for a module.'
+  def loads(self, path, encoding=None):
+    encoding = encoding or sys.getdefaultencoding()
+    buf = pkg_resources.resource_string(self.package, self.path(path))
+    return buf.decode(encoding)
 
-  if not hasattr(module, '__file__'):
-    log.noise(f'resolve({module}) __file__ missing')
-    return None
-  mod_dir = os.path.dirname(module.__file__)
-  mod_name = module.__name__.split('.')[-1]
-  log.noise(f'resolve({module}) __file__ -> {module.__file__}')
-  log.noise(f'resolve({module}) __name__ -> {module.__name__}')
-  log.noise(f'resolve({module}) mod_dir -> {mod_dir}')
-  log.noise(f'resolve({module}) mod_name -> {mod_name}')
-  assets_dir = os.path.join(mod_dir, path.asset_dir_name)
-  mod_assets_dir = os.path.join(assets_dir, mod_name)
-  log.noise(f'resolve({module}) -> {mod_assets_dir}')
-  return mod_assets_dir
+  def copy(self, src, dst):
+    buf = self.load(src)
+    with open(dst, 'wb') as file:
+      file.write(buf)
 
-def lookup(obj, name):
-  assets_dir = path.resolve(import_module(obj.__module__))
-  if not assets_dir:
-    log.noise(f'lookup({obj}, {name}) __module__ -> None')
-    return None
-  log.noise(f'lookup({obj}, {name}) __module__ -> {obj.__module__}')
-  asset = assets_dir
-  if name:
-    asset = os.path.join(assets_dir, name)
-  if os.path.exists(asset) or os.path.islink(asset):
-    log.noise(f'lookup({obj}, {name}) FOUND -> {asset}')
-    return asset
-  log.noise(f'lookup({obj}, {name}) MISSING -> {asset}')
-  return None
+  def open(self, path):
+    return pkg_resources.resource_stream(self.package, self.path(path))
 
-def path(obj, name=None, bases=True):
-  '''
-  Return the absolute path for an asset. `obj` is resolved to a module, and the
-  module is passed to `resolve()`. `name` is looked up within the module's
-  assets directory.
+  def list(self, path, long=False):
+    files = pkg_resources.resource_listdir(self.package, self.path(path))
+    if long:
+      return [self.join(path, file) for file in files]
+    return files
 
-  `obj` - function or class type
-  `name` - file path relative to the `obj`'s module assets directory
-  '''
-  result = None
-  if isinstance(obj, types.FunctionType):
-    result = path.lookup(obj, name)
-  elif inspect.isclass(obj):
-    for cls in inspect.getmro(obj):
-      asset = path.lookup(cls, name)
-      if asset:
-        result = asset
-        break
-  else:
-    return path(type(obj), name, bases)
-  if result:
-    log.noise(f'path({obj}, name={name}, bases={bases}) FOUND -> {result}')
-    return result
-  log.noise(f'path({obj}, name={name}, bases={bases}) -> MISSING')
-  raise FileNotFoundError(f"Asset '{name}' not found for obj {obj}")
+  def exists(self, path):
+    return pkg_resources.resource_exists(self.package, self.path(path))
 
-path.asset_dir_name = '__assets__'
-path.lookup = lookup
-path.resolve = resolve
+  def isdir(self, path):
+    return pkg_resources.resource_isdir(self.package, self.path(path))
 
-def open(obj, name, mode, encoding=None):
-  log.noise(f'open({obj}, {mode}, encoding={encoding})')
-  return builtins.open(path(obj, name), mode=mode, encoding=encoding)
+  def isfile(self, path):
+    return self.exists(path) and not self.isdir(path)
 
-def slurp(obj, name, mode, encoding=None):
-  log.noise(f'slurp({obj}, {name}, {mode}, encoding={encoding})')
-  with builtins.open(path(obj, name), mode=mode, encoding=encoding) as fd:
-    return fd.read()
-
-def loadf(obj, name, encoding=None):
-  log.noise(f'loadf({obj}, {name}, encoding={encoding}')
-  return formats.loadf(path(obj, name), encoding=encoding)
+  def print(self, path, *args, **kwargs):
+    print(self.loads(path), *args, **kwargs)
