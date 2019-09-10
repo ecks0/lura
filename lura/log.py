@@ -7,7 +7,7 @@ from collections import defaultdict
 from io import StringIO
 from logging import NOTSET, DEBUG, INFO, WARNING, WARN, ERROR, CRITICAL, FATAL
 from lura.attrs import attr
-from lura.utils import DynamicProxy, asbool
+from lura.utils import asbool
 
 class ExtraInfoFilter(logging.Filter):
   '''
@@ -37,20 +37,6 @@ class ExtraInfoFilter(logging.Filter):
     record.short_levelname = self.map_short_level.get(record.levelname)
     record.run_time = time.time() - self.initialized
     return True
-
-class MultiLogger(DynamicProxy):
-
-  NOTSET = logging.NOTSET
-  DEBUG = logging.DEBUG
-  INFO = logging.INFO
-  WARNING = logging.WARNING
-  WARN = logging.WARN
-  ERROR = logging.ERROR
-  CRITICAL = logging.CRITICAL
-  FATAL = logging.FATAL
-
-  def __init__(self, loggers):
-    super().__init__(loggers)
 
 class MultiLineFormatter(logging.Formatter):
 
@@ -255,7 +241,6 @@ class Logging:
     logging.addLevelName(number, name)
     setattr(logging, name, number)
     setattr(logging.Logger, name, number)
-    setattr(MultiLogger, name, number)
     setattr(type(self), name, number)
     setattr(
       logging.Logger, name.lower(), self.build_logger_log_method(number))
@@ -318,8 +303,3 @@ class Logging:
     '''
     logger = self.std_logger if logger is None else logger
     self.get_logger(logger).removeHandler(handler)
-
-  def multilog(self, *loggers):
-    'Log messages to multiple loggers.'
-
-    return MultiLogger([_ for _ in loggers if _])
