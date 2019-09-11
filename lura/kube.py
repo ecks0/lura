@@ -119,8 +119,11 @@ class Application:
         lines = logs(name, tail=count)
         buf.write(f'----- {name} -----')
         buf.write(os.linesep)
-        buf.write(lines.rstrip())
+        if lines:
+          buf.write(lines.rstrip())
+          buf.write(os.linesep)
         buf.write(os.linesep)
+      return buf.getvalue()
 
   manifest = property(get_manifest)
   pods = property(get_pods)
