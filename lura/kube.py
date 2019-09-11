@@ -109,7 +109,7 @@ class Application:
     log.info(f'Deleting {self.name}')
     with ResourceFiles(self._get_resources()) as files:
       for file in reversed(files):
-        delete(filename=file)
+        delete(filename=file, enforce=enforce)
 
   def logs(self, count):
     pods = self._get_pods()
