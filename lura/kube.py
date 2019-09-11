@@ -1,3 +1,7 @@
+import io
+import os
+from abc import abstractmethod
+from lura import fs
 from lura import logs
 from lura.run import run
 
@@ -42,3 +46,85 @@ def delete(*args, enforce=True, **opts):
 
 def logs(*args, **opts):
   return kubectl('logs', args, opts).stdout
+
+class ResourceFiles(fs.ScratchDir):
+
+  def __init__(self, resources, keep=False):
+    super().__init__('lura-kube', keep)
+    self.resources = resources
+
+  def __enter__(self):
+    log.debug(f'Creating resource files')
+    temp_dir = super().__enter__()
+    files = []
+    for name, resource in self.resources:
+      dst = os.path.join(temp_dir, f'{name}.yaml')
+      log.debug(f'    {dst}')
+      fs.dump(dst, resource)
+      files.append(dst)
+    del self.resources
+    return files
+
+class Application:
+
+  def __init__(self, name):
+    super().__init__()
+    self.name = name
+
+  @abstractmethod
+  def _get_resources(self):
+    return []
+
+  @abstractmethod
+  def _get_pods(self):
+    return []
+
+  def get_resources(self):
+    return self._get_resources()
+
+  def get_pods(self):
+    return self._get_pods()
+
+  def get_manifest(self):
+    with io.StringIO() as buf:
+      buf.write(f'# {self.name}')
+      buf.write(os.linesep)
+      for _, resource in self._get_resources():
+        buf.write('---')
+        buf.write(os.linesep)
+        buf.write(resource.rstrip())
+        buf.write(os.linesep)
+      return buf.getvalue()
+
+  def is_applied(self):
+    return bool(self._get_pods())
+
+  def apply(self):
+    log.info(f'Applying {self.name}')
+    with ResourceFiles(self._get_resources()) as files:
+      for file in files:
+        apply(filename=file)
+
+  def delete(self, enforce=True):
+    log.info(f'Deleting {self.name}')
+    with ResourceFiles(self._get_resources()) as files:
+      for file in reversed(files):
+        delete(filename=file)
+
+  def logs(self, count):
+    pods = self._get_pods()
+    if not pods:
+      return ''
+    with io.StringIO() as buf:
+      for pod in pods:
+        name = pod.metadata.name
+        lines = logs(name, tail=count)
+        buf.write(f'----- {name} -----')
+        buf.write(os.linesep)
+        buf.write(lines.rstrip())
+        buf.write(os.linesep)
+
+  manifest = property(get_manifest)
+  pods = property(get_pods)
+  applied = property(is_applied)
+  resources = property(get_resources)
