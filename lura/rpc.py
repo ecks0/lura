@@ -48,7 +48,7 @@ def connect(host, port, key_path, cert_path, sync_timeout, log=log):
   conn = rpyc.ssl_connect(
     host, port=port, keyfile=key_path, certfile=cert_path,
     config=protocol_config)
-  name = conn.service.get_service_name()
+  name = conn.root.get_service_name()
   patch_close(conn, name)
   conn.host = host
   conn.port = port

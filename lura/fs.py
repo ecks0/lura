@@ -34,12 +34,11 @@ class ScratchDir:
 
   def __enter__(self):
     self._dir = tempdir(self._prefix)
-    log.debug(f'Created scratch directory: {self._dir}')
     return self._dir
 
   def __exit__(self, *exc_info):
     if self._keep:
-      log.info(f'Keeping scratch directory: {self._dir}')
+      log.info(f'Keeping temp directory: {self._dir}')
     else:
       rmr(self._dir)
     del self._dir
