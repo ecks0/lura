@@ -87,8 +87,6 @@ class Application:
 
   def get_manifest(self):
     with io.StringIO() as buf:
-      buf.write(f'# {self.name}')
-      buf.write(os.linesep)
       for _, resource in self._get_resources():
         buf.write('---')
         buf.write(os.linesep)
