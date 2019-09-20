@@ -124,7 +124,7 @@ class Logging:
       std_format = self.formats.bare[0]
     if std_datefmt is None:
       std_datefmt = self.formats.bare[1]
-    stdup = std_logger.upper()
+    stdup = std_logger.upper().replace('.', '_')
     if log_envvar is None:
       log_envvar = f'{stdup}_LOG'
     if level_envvar is None:
