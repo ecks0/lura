@@ -25,28 +25,30 @@ class Thread(threading.Thread):
     return thread
 
   def __init__(
-    self,
-    group=None,
-    target=None,
-    name=None,
-    args=(),
-    kwargs={},
-    *,
-    daemon=None,
-    reraise=True,
+    self, group=None, target=None, name=None, args=None, kwargs=None, *,
+    daemon=None, reraise=True
   ):
-    super().__init__(group=group, name=name, daemon=daemon, target=self.work__)
-    self.target_ = target
-    self.args_ = args
-    self.kwargs_ = kwargs
-    self.result = None
-    self.error = None
-    self.reraise = reraise
+    super().__init__(group=group, name=name, daemon=daemon, target=self.__work)
+    self._thread_target = target
+    self._thread_args = args
+    self._thread_kwargs = kwargs
+    self._thread_reraise = reraise
+    self._thread_result = None
+    self._thread_error = None
 
-  def work__(self):
+  def __work(self):
     try:
-      self.result = self.target_(*self.args_, **self.kwargs_)
+      self._thread_result = self._thread_target(
+        *self._thread_args, **self._thread_kwargs)
     except Exception:
-      self.error = sys.exc_info()
-      if self.reraise:
+      self._thread_error = sys.exc_info()
+      if self._thread_reraise:
         raise
+
+  @property
+  def result(self):
+    return self._thread_result
+
+  @property
+  def error(self):
+    return self._thread_error
