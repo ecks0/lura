@@ -25,7 +25,7 @@ class Thread(threading.Thread):
     return thread
 
   def __init__(
-    self, group=None, target=None, name=None, args=None, kwargs=None, *,
+    self, group=None, target=None, name=None, args=(), kwargs={}, *,
     daemon=None, reraise=True
   ):
     super().__init__(group=group, name=name, daemon=daemon, target=self.__work)
