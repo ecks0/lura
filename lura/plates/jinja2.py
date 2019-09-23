@@ -1,8 +1,8 @@
-import jinja2 as jinja2_
+import jinja2 as _jinja2
 import os
-from lura.plates.base import Expander
+from lura.plates import base
 
-class Jinja2(Expander):
+class Expander(base.Expander):
   '''
   Expand templates using Jinja2.
 
@@ -26,35 +26,16 @@ class Jinja2(Expander):
   def __init__(self, cwd=None):
     super().__init__()
     cwd = os.getcwd() if cwd is None else cwd
-    self.engine = jinja2_.Environment(
-      trim_blocks=True,
-      lstrip_blocks=True,
-      loader=jinja2_.FileSystemLoader(cwd),
-      extensions=self.extensions,
+    self.engine = _jinja2.Environment(
+      trim_blocks = True,
+      lstrip_blocks = True,
+      loader = _jinja2.FileSystemLoader(cwd),
+      extensions = self.extensions,
     )
 
-  def expands(self, env, tmpl):
-    '''
-    Expand a template.
-
-    :param dict env: expansion environment
-    :param str tmpl: template text
-    :returns: The expanded template.
-    :rtype: str
-    '''
+  def expandss(self, env, tmpl):
     return self.engine.from_string(tmpl).render(env)
 
-  def expandf(self, env, tmpl, dst, encoding=None):
-    '''
-    Expand a template to a file.
-
-    :param str env: expansion environment
-    :param str tmpl: template text
-    :param str dst: destination file path
-    :returns: True if dst file was written
-    :rtype bool:
-    '''
+  def expandsf(self, env, tmpl, dst, encoding=None):
     with open(dst, 'w', encoding=encoding) as fd:
       fd.write(self.engine.from_string(tmpl).render(env))
-
-jinja2 = Jinja2()

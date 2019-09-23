@@ -1,7 +1,7 @@
 import yaml
 from lura.attrs import ottr
+from lura.formats import base
 from lura.formats import myaml
-from lura.formats.base import Format
 
 class DictLoaderMixin:
   'Yaml loader mixin which uses a user-defined dict type.'
@@ -99,7 +99,7 @@ class SafeDumper(DictDumperMixin, yaml.SafeDumper):
       self.default_dict_type, type(self).represent_custom_dict
     )
 
-class Yaml(Format):
+class Format(base.Format):
   '''
   Thin wrapper for yaml. This class configures the yaml module to use
   ordered dictionaries for backing dicts, prints yaml which is more
@@ -111,13 +111,9 @@ class Yaml(Format):
   # the dump*() methods.
 
   def loads(self, data):
-    'Load yaml from string ``data``.'
-
     return yaml.load(data, Loader=Loader)
 
   def loadf(self, src, encoding=None):
-    'Load yaml from file ``src``.'
-
     with open(src, encoding=None) as fd:
       return self.loads(fd.read())
 
@@ -125,19 +121,13 @@ class Yaml(Format):
     return self.loads(fd.read()) # FIXME
 
   def dumps(self, data):
-    'Return dict ``data`` as yaml.'
-
     return myaml.dump(data)
 
   def dumpf(self, data, dst, encoding=None):
-    'Write dict ``data`` as yaml to file ``dst`` using ``encoding``.'
-
     with open(dst, 'w', encoding=encoding) as fd:
       fd.write(myaml.dump(data))
 
   def dumpfd(self, data, fd):
-    'Write dict ``data`` as yaml to file descriptor ``fd``.'
-
     fd.write(self.dumps(data))
     if hasattr(fd, 'flush') and callable(fd.flush):
       fd.flush()

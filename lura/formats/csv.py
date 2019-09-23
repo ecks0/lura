@@ -6,17 +6,17 @@ from collections.abc import MutableMapping
 from io import StringIO
 from lura import logs
 from lura.attrs import attr, ottr
-from lura.formats.base import Format
+from lura.formats import base
 
 # FIXME support restkey/restval
 
 log = logs.get_logger(__name__)
 
-class Csv(Format):
+class Format(base.Format):
   '''
   Serialize or deserialize CSV data with optional type inference on load.
 
-  Dump support is currently not implemented, but will be eventually.
+  Dump support is currently not implemented.
 
   Load support is implemented by `csv.DictReader`.
 
@@ -49,8 +49,6 @@ class Csv(Format):
     self, fd, infer=True, typemap=None, fieldnames=None, dialect='excel',
     **fmtparams
   ):
-    msg = 'loadfd({}, infer={}, typemap={}, fieldnames={}, dialect={}'
-    log.noise(msg.format(fd, infer, typemap, fieldnames, dialect))
     res = []
     reader = csv.DictReader(fd, fieldnames=fieldnames, dialect=dialect)
     for row in reader:
@@ -72,24 +70,17 @@ class Csv(Format):
     if typemap and name in typemap:
       # always use the mapped type if present
       res = typemap[name](value)
-      log.noise("_value() typemap: {}: {}('{}') -> {}".format(
-        name, typemap[name].__name__, value, res))
       return res
     if not infer:
       # return the naked value if not inferring
-      log.noise(f"_value() noinfer: {name}: '{value}'")
       return value
     try:
-      # evaluate the value as a literal value
+      # evaluate the value as a literal
       res = ast.literal_eval(value)
-      log.noise("_value() eval: {}: {}('{}') -> {}".format(
-        name, res.__class__.__name__, value, res))
       # convert dict to attr for convenience
       if isinstance(res, MutableMapping):
         res = attr(res)
-        log.noise(f'_value() {name}: MutableMapping -> attr')
       return res
     except (ValueError, SyntaxError):
       # return the naked value if the value can't be evaluated
-      log.noise(f"_value() inferexc: {name}: '{value}'")
       return value

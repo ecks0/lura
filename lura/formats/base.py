@@ -4,7 +4,6 @@ from abc import abstractmethod
 from lura.hash import hashs
 
 class Format:
-  'Serialize or deserialize data.'
 
   def __init__(self, *args, **kwargs):
     super().__init__()
