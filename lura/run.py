@@ -21,6 +21,8 @@ log = logs.get_logger(__name__)
 merge = always_merger.merge
 
 def tee(source, targets, cond=lambda: True):
+  'Read from one source and write to many targets.'
+
   while cond():
     line = source.readline()
     if line == '':
@@ -29,6 +31,7 @@ def tee(source, targets, cond=lambda: True):
       target.write(line)
 
 class Tee(threads.Thread):
+  'Read from one source and write to many targets in a thread.'
 
   def __init__(self, source, targets):
     super().__init__(target=self.work, name='Tee')
@@ -43,7 +46,10 @@ class Tee(threads.Thread):
   def stop(self):
     self._work = False
 
-class LogWatcher:
+class LogWriter:
+  'A file-like object which logs data written to it.'
+
+  # this is used to implement the `run.log(...)` context manager
 
   def __init__(self, logger, level, tag):
     super().__init__()
@@ -54,6 +60,7 @@ class LogWatcher:
     self.log(f'[{self.tag}] {line.rstrip()}')
 
 class Result:
+  'The value returned by `run()`.'
 
   #order = ('context', 'args', 'argv', 'code', 'stdout', 'stderr')
   order = ('args', 'argv', 'code', 'stdout', 'stderr')
@@ -83,6 +90,7 @@ class Result:
     file.write(self.format(fmt=fmt))
 
 class Error(LuraError):
+  'The error raised by `run()` when a process exits with the wrong code.'
 
   def __init__(self, result):
     msg = 'Process expected exit code {} but received code {}{}{}'.format(
@@ -91,6 +99,7 @@ class Error(LuraError):
     self.result = result
 
 class Run(threading.local):
+  'The implementation of `run()`.'
 
   default_shell_path = shell_path()
 
@@ -127,6 +136,8 @@ class Run(threading.local):
     self.context = {}
 
   def _subprocess(self, ctx):
+    'Run with `subprocess.Popen`.'
+
     argv = ctx.args if ctx.shell else ctx.argv
     proc = subp.Popen(
       argv, env=ctx.env, cwd=ctx.cwd, shell=ctx.shell, stdout=subp.PIPE,
@@ -150,6 +161,8 @@ class Run(threading.local):
       proc.kill()
 
   def _ptyprocess(self, ctx):
+    'Run with `PtyProcessUnicode`.'
+
     if ctx.stdin:
       raise NotImplementedError('stdin not implemented for pty processes')
     if shell:
@@ -178,6 +191,8 @@ class Run(threading.local):
           'Unhandled exception while killing pty process', exc_info=True)
 
   def _check_args(self, kwargs):
+    'Validate arg names in `self.defaults`, `self.context`, and `kwargs`.'
+
     def check_args(name, bundle):
       for arg in bundle:
         if arg not in self._kwargs:
@@ -187,6 +202,8 @@ class Run(threading.local):
     check_args('kwargs', kwargs)
 
   def _setup_args_argv(self, ctx, argv):
+    'ctx.args is always a string, ctx.argv is always a list.'
+
     if isinstance(argv, str):
       ctx.args = argv
       ctx.argv = shlex.split(argv)
@@ -195,6 +212,8 @@ class Run(threading.local):
       ctx.argv = argv
 
   def run(self, argv, **kwargs):
+    'Entry point for `run()`.'
+
     self._check_args(kwargs)
     ctx = attr(merge(self.defaults, merge(self.context, kwargs)))
     if ctx.env is None:
@@ -224,6 +243,8 @@ class Run(threading.local):
 
   @contextmanager
   def quash(self):
+    'Do not enforce exit code while in this context.'
+
     old = self.context
     new = {'enforce': False}
     self.context = merge(old, new)
@@ -234,6 +255,8 @@ class Run(threading.local):
 
   @contextmanager
   def enforce(self, enforce_code=0):
+    'Enforce the given exit code while in this context.'
+
     old = self.context
     new = {'enforce': True, 'enforce_code': enforce_code}
     self.context = merge(old, new)
@@ -244,6 +267,8 @@ class Run(threading.local):
 
   @contextmanager
   def cwd(self, cwd):
+    'Run in directory `cwd` while in this context.'
+
     old = self.context
     new = {'cwd': cwd}
     self.context = merge(old, new)
@@ -256,6 +281,8 @@ class Run(threading.local):
   def sudo(
     self, sudo_user=None, sudo_group=None, sudo_password=None, sudo_login=None
   ):
+    'Run with sudo while in this context.'
+
     old = self.context
     new = dict(
       sudo = True,
@@ -272,10 +299,12 @@ class Run(threading.local):
 
   @contextmanager
   def log(self, logger, log_level=log.DEBUG):
+    'Send stdout and stderr to a logger while in this context.'
+
     old = self.context
     new = {
-      'stdout': [LogWatcher(logger, log_level, 'out')],
-      'stderr': [LogWatcher(logger, log_level, 'err')],
+      'stdout': [LogWriter(logger, log_level, 'out')],
+      'stderr': [LogWriter(logger, log_level, 'err')],
     }
     self.context = merge(old, new)
     try:
