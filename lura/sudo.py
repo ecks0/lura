@@ -15,6 +15,11 @@ class SudoTimeout(LuraError):
     super().__init__(*args, *kwargs)
 
 class SudoHelper:
+  '''
+  A helper for implementing `popen()`-like or `run()`-like interfaces that
+  support invoking commands with sudo. See the `popen()` function in this
+  module for a usage example.
+  '''
 
   timeout = 7.0
   sleep_interval = 0.1
@@ -158,13 +163,6 @@ class SudoHelper:
     self.askpass_path = None
 
 SudoHelper._askpass_tmpl = '''#!{{ quote(shell) }}
-cleanup() {
-  rm -f \
-    {{ quote(fifo_path) }} \
-    {{ quote(askpass_path) }}
-}
-trap cleanup EXIT
-set -e
 cat < {{ quote(fifo_path) }}
 '''
 
@@ -175,10 +173,13 @@ def popen(
   sudo_helper = SudoHelper(
     user=sudo_user, group=sudo_group, password=sudo_password, login=sudo_login)
   argv, askpass_path = sudo_helper.prepare(argv)
-  if askpass_path:
-    if env is None:
-      env = dict(os.environ)
-    env['SUDO_ASKPASS'] = askpass_path
-  proc = subp.Popen(argv, *args, env=env, **kwargs)
-  sudo_helper.wait()
-  return proc
+  try:
+    if askpass_path:
+      if env is None:
+        env = dict(os.environ)
+      env['SUDO_ASKPASS'] = askpass_path
+    proc = subp.Popen(argv, *args, env=env, **kwargs)
+    sudo_helper.wait()
+    return proc
+  finally:
+    sudo_helper.cleanup()
