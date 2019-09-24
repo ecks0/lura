@@ -72,7 +72,8 @@ class PrettyYAMLDumper(yaml.dumper.SafeDumper):
 		elif isinstance(data, str):
 			return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
 		else:
-			return super(PrettyYAMLDumper, dumper).represent_undefined(data)
+			return dumper.represent_scalar('tag:yaml.org,2002:str', repr(data), style="'")
+			#return super(PrettyYAMLDumper, dumper).represent_undefined(data)
 
 	def serialize_node(self, node, parent, index):
 		if self.pyaml_force_embed:
