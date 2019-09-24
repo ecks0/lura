@@ -8,7 +8,6 @@ from lura import run
 from lura import ssh
 from shlex import quote
 
-
 class System:
 
   def __init__(self):
@@ -61,12 +60,12 @@ class System:
     with fs.TempDir(prefix='lura-system-read.') as temp_dir:
       dst = f'{temp_dir}/{os.path.basename(path)}'
       self.get(path, dst)
-      return fs.slurp(dst, encoding=encoding)
+      return fs.loads(dst)
 
   def write(self, path, data):
     with fs.TempDir(prefix='lura-system-write.') as temp_dir:
       src = f'{temp_dir}/{os.path.basename(path)}'
-      fs.dump(src, data, encoding=encoding)
+      fs.dumps(src, data)
       self.put(src, path)
 
   def whoami(self):
@@ -197,13 +196,9 @@ class Local(System):
       if self.sudo_user:
         kwargs['sudo_user'] = self.sudo_user
     kwargs['shell'] = True
-    try:
-      res = run(*args, **kwargs)
-      res.return_code = res.code # like fabric
-      return res
-    except run.Error as exc:
-      exc.result.return_code = exc.result.code
-      raise
+    res = run(*args, **kwargs)
+    res.return_code = res.code # like fabric
+    return res
 
   def read(self, path):
     return fs.loads(path)
