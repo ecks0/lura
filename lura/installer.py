@@ -101,7 +101,7 @@ class Installer:
     else:
       log.info(f'    {dst}')
     tmpl = self.assets.loads(src)
-    jinja2.expandf(env, tmpl, dst)
+    jinja2.expandsf(env, tmpl, dst)
 
   def expand_template_assets(self):
     template_assets = self.get_template_assets()
