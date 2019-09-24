@@ -1,4 +1,5 @@
 import hashlib
+from lura import LuraError
 
 def hashs(buf, alg='sha512'):
   'Hash a buffer using hashlib.'
@@ -29,18 +30,7 @@ def hashf(path, alg='sha512'):
 
 hashf.buflen = 256 * 1024
 
-def checkhash(path, alg, hash):
-  '''
-  Calculate the hash for a file at ``path`` using algorithm ``alg`` and
-  compare it to a known hash ``sum``. If the hashes do not match, then
-  ``checkhash.error`` is raised.
-  '''
-
-  hash2 = hashf(path, alg)
-  if hash != hash2:
-    raise checkhash.error(path, alg, hash, hash2)
-
-class HashError(Exception):
+class HashError(LuraError):
 
   def __init__(self, path, alg, expected, received):
     msg = f'{path}: expected {alg} {expected}, got {received}'
@@ -50,4 +40,13 @@ class HashError(Exception):
     self.expected = expected
     self.received = received
 
-checkhash.error = HashError
+def checkhash(path, alg, hash):
+  '''
+  Calculate the hash for a file at ``path`` using algorithm ``alg`` and
+  compare it to a known hash ``sum``. If the hashes do not match, then
+  ``checkhash.error`` is raised.
+  '''
+
+  hash2 = hashf(path, alg)
+  if hash != hash2:
+    raise HashError(path, alg, hash, hash2)
