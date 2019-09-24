@@ -45,7 +45,7 @@ class MultiLineFormatter(logging.Formatter):
     super().__init__(*args, **kwargs)
 
   def format(self, record):
-    if os.linesep not in record.msg:
+    if not isinstance(record.msg, str) or os.linesep not in record.msg:
       record.message = super().format(record)
       return record.message
     msg = record.msg
@@ -113,6 +113,7 @@ class Logging:
     import yaml
     config = yaml.safe_load(f'''
       version: 1
+      disable_existing_loggers: false
       filters:
         short_name: {{}}
       formatters:
@@ -155,7 +156,8 @@ class Logging:
 
     if isinstance(level, str):
       level = getattr(self, level.upper())
-    self.get_logger().setLevel(level)
+    logger = self.get_logger()
+    logger.setLevel(level)
 
   def get_level_name(self, number):
     return logging._levelToName[number]
