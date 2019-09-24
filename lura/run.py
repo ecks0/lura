@@ -16,8 +16,6 @@ from lura.attrs import deepcopy
 from lura.sudo import SudoHelper
 from lura.sudo import shell_path
 
-### FIXME Why aren't we seeing log messages from this module?
-
 log = logs.get_logger(__name__)
 
 merge = always_merger.merge
@@ -76,8 +74,8 @@ class Result:
     self.stdout = stdout
     self.stderr = stderr
     self.context = context
-    context.pop('args')
-    context.pop('argv')
+    del context['args']
+    del context['argv']
     if context.sudo_password:
       context.sudo_password = '<scrubbed>'
 
@@ -107,7 +105,7 @@ class Run(threading.local):
   # kwargs that we accept
   _kwargs = (
     'pty', 'env', 'env_replace', 'cwd', 'shell', 'stdin', 'stdout', 'stderr',
-    'enforce', 'enforce_code', 'encoding', 'sudo', 'sudo_user', 'sudo_group',
+    'encoding', 'enforce', 'enforce_code', 'sudo', 'sudo_user', 'sudo_group',
     'sudo_password', 'sudo_login'
   )
 
@@ -121,9 +119,9 @@ class Run(threading.local):
     stdin         = None,
     stdout        = [],
     stderr        = [],
+    encoding      = sys.getdefaultencoding(),
     enforce       = True,
     enforce_code  = 0,
-    encoding      = sys.getdefaultencoding(),
     sudo          = False,
     sudo_user     = None,
     sudo_group    = None,
@@ -165,7 +163,7 @@ class Run(threading.local):
         thread.stop()
         thread.join(self.join_timeout)
         if thread.is_alive():
-          log.warn(f'Failed joining tee thread: {thread}')
+          log.debug(f'Failed joining tee thread: {thread}')
       if proc:
         proc.kill()
 
@@ -174,7 +172,7 @@ class Run(threading.local):
 
     if ctx.stdin:
       raise NotImplementedError('stdin not implemented for pty processes')
-    if shell:
+    if ctx.shell:
       ctx.argv = [self.shell, '-c', ctx.args]
       ctx.args = shjoin(ctx.argv)
     outbuf = io.StringIO()
@@ -196,7 +194,7 @@ class Run(threading.local):
         try:
           proc.kill(9)
         except Exception:
-          log.warn('Failed killing pty process', exc_info=True)
+          log.debug('Failed killing pty process', exc_info=True)
 
   def _check_args(self, kwargs):
     'Validate arg names in `self.defaults`, `self.context`, and `kwargs`.'
@@ -260,7 +258,7 @@ class Run(threading.local):
       argv = self._sudo_setup(ctx, argv)
     try:
       self._args_argv(ctx, argv)
-      if ctx.get('pty'):
+      if ctx.pty:
         result = self._ptyprocess(ctx)
       else:
         result = self._subprocess(ctx)
