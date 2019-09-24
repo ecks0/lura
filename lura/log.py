@@ -10,10 +10,10 @@ class ExtraInfoFilter(logging.Filter):
   '''
   Provides additional fields to log records:
 
-  - ``short_name`` a reasonably short name
-  - ``shortest_name`` the shortest reasonably useful name
-  - ``short_levelname`` a symbol associated with a level
-  - ``run_time`` number of seconds the logging system has been initialized
+  - `short_name` a reasonably short name
+  - `shortest_name` the shortest reasonably useful name
+  - `short_levelname` a symbol associated with a level
+  - `run_time` number of seconds the logging system has been initialized
   '''
 
   initialized = time.time()
@@ -58,6 +58,12 @@ class MultiLineFormatter(logging.Formatter):
     return record.message
 
 class Logging:
+  '''
+  An API for the configuration and maintenance of an application's or
+  library's root logger.
+
+  `MultiLineFormatter` and `ExtraInfoFilter` are used by default.
+  '''
 
   # for convenience
   NOTSET   = logging.NOTSET
@@ -73,7 +79,7 @@ class Logging:
   formats = attr(
     bare    = '%(message)s',
     classic = '%(asctime)s %(levelname)-8s %(short_name)s %(message)s',
-    debug   = '%(run_time)-8.3f %(short_name)19s %(short_levelname)s %(message)s',
+    hax     = '%(run_time)-8.3f %(short_name)19s %(short_levelname)s %(message)s',
     runtime = '%(run_time)-12.3f %(message)s',
     verbose = '%(asctime)s %(run_time)12.3f %(name)s %(short_levelname)s %(message)s',
   )
@@ -208,3 +214,9 @@ class Logging:
   def remove_handler(self, handler, logger=None):
     logger = logger or self.std_logger
     self.get_logger(logger).removeHandler(handler)
+
+def method_for_level(self, level):
+  name = logging._levelToName[level].lower()
+  return getattr(self, name)
+
+logging.Logger.method_for_level = method_for_level
