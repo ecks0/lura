@@ -3,10 +3,11 @@
 import os
 from abc import abstractmethod
 from contextlib import contextmanager
+from lura import fs
+from lura import run
 from lura import ssh
-from lura.run import run
 from shlex import quote
-from tempfile import TemporaryDirectory as TempDir
+
 
 class System:
 
@@ -57,13 +58,13 @@ class System:
       self.rmrf(path)
 
   def read(self, path):
-    with TempDir() as temp_dir:
+    with fs.TempDir(prefix='lura-system-read.') as temp_dir:
       dst = f'{temp_dir}/{os.path.basename(path)}'
       self.get(path, dst)
       return fs.slurp(dst, encoding=encoding)
 
   def write(self, path, data):
-    with TempDir() as temp_dir:
+    with fs.TempDir(prefix='lura-system-write.') as temp_dir:
       src = f'{temp_dir}/{os.path.basename(path)}'
       fs.dump(src, data, encoding=encoding)
       self.put(src, path)
@@ -168,10 +169,17 @@ class System:
       return
     self.run(f'mkdir -p {quote(dir)}')
 
+  def hostname(self):
+    raise NotImplementedError()
+
+  @property
+  def shell(self):
+    return self.run('echo $0').stdout.rstrip()
+
 class Local(System):
 
-  def __init__(self, sudo_passord=None, sudo_user=None):
-    super().__init__(*args, **kwargs)
+  def __init__(self, sudo_password=None, sudo_user=None):
+    super().__init__()
     self.sudo_password = sudo_password
     self.sudo_user = sudo_user
 
@@ -198,12 +206,10 @@ class Local(System):
       raise
 
   def read(self, path):
-    with open(path) as fd:
-      return fd.read()
+    return fs.loads(path)
 
   def write(self, path, data):
-    with open(path, 'w') as fd:
-      fd.write(data)
+    return fs.writes(path, data)
 
 class Ssh(System):
 
