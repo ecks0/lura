@@ -3,8 +3,8 @@
 import fabric
 import sys
 from invoke import Responder
-from lura.shell import shjoin
 from lura import logs
+from subprocess import list2cmdline as shjoin
 
 log = logs.get_logger(__name__)
 
@@ -14,15 +14,13 @@ class Client:
 
   def __init__(
     self, host, port=22, user=None, password=None, key_file=None,
-    passphrase=None, timeout=60.0, auth_timeout=120.0, sudo_password=None
+    passphrase=None, timeout=60.0, auth_timeout=60.0, sudo_password=None
   ):
-    # FIXME key data from buffer
+    # FIXME accept key data from buffer
     super().__init__()
     self.host = host
     self.port = port
     self.user = user
-    self.key_file = key_file
-    self.passphrase = passphrase
     self.timeout = timeout
     self.conn_kwargs = {
       'key_filename': key_file,
@@ -85,7 +83,6 @@ class Client:
     if not isinstance(argv, str):
       argv = shjoin(argv)
     self._log(f'run {argv}')
-    encoding = encoding or sys.getdefaultencoding()
     return self.conn.run(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
       encoding=encoding, in_stream=stdin, out_stream=stdout,
@@ -99,7 +96,6 @@ class Client:
     if not isinstance(argv, str):
       argv = shjoin(argv)
     self._log(f'sudo {argv}')
-    encoding = encoding or sys.getdefaultencoding()
     return self.conn.sudo(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
       encoding=encoding, in_stream=stdin, out_stream=stdout,
