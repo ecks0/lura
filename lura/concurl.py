@@ -11,9 +11,17 @@ from lura import logs
 from lura.formats import yaml
 from lura.attrs import attr, ottr
 from lura.threads import pool
-from lura.utils import common
 
 log = logs.get_logger(__name__)
+
+def common(data, count=None):
+  'Return the count most common values found in list data.'
+
+  counts = ((data.count(value), value) for value in set(data))
+  common = sorted(counts, reverse=True)
+  if count is None:
+    return common
+  return common[:min(len(data), count)]
 
 class Base(ottr):
 
