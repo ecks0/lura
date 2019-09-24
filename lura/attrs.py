@@ -26,7 +26,10 @@ which cannot be used as a valid Python attribute name. Example:
 ```
 '''
 
-from collections import OrderedDict, MutableMapping, defaultdict
+from collections import MutableMapping
+from collections import MutableSequence
+from collections import OrderedDict
+from collections import defaultdict
 
 class AttributesMixin:
   'Mixin for dict types allowing attributes to be treated as keys.'
@@ -181,3 +184,25 @@ dottr = DefaultOrderedAttributes
 rottr = RecursiveOrderedAttributes
 
 wttr = AttributesWrapper
+
+def deepcopy(obj, map_cls=attr, seq_cls=None):
+
+  types = (MutableMapping, MutableSequence)
+  if isinstance(obj, MutableMapping):
+    cls = map_cls or type(obj)
+    return cls(
+      (k, deepcopy(v, map_cls, seq_cls))
+      if isinstance(v, types)
+      else (k, v)
+      for (k, v) in obj.items()
+    )
+  elif isinstance(obj, MutableSequence):
+    cls = seq_cls or type(obj)
+    return cls(
+      deepcopy(item, map_cls, seq_cls)
+      if isinstance(item, types)
+      else item
+      for item in obj
+    )
+  else:
+    raise ValueError(f'obj is not a MutableMapping or MutableSequence: {obj}')
