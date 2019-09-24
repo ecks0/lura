@@ -2,13 +2,22 @@ import os
 import shlex
 import shutil
 import subprocess as subp
+import sys
 from lura import LuraError
 from lura.plates import jinja2
-from lura.shell import shell_path
-from lura.shell import shjoin
 from lura.time import Timer
 from tempfile import mkdtemp
 from time import sleep
+
+shjoin = subp.list2cmdline
+
+def shell_path():
+  proc = subp.Popen(
+    'echo $SHELL', shell=True, stdout=subp.PIPE,
+    encoding=sys.getdefaultencoding())
+  with proc:
+    proc.wait()
+    return proc.stdout.read().rstrip()
 
 class SudoTimeout(LuraError):
   def __init__(self, *args, **kwargs):
@@ -21,9 +30,9 @@ class SudoHelper:
   module for a usage example.
   '''
 
+  shell = shell_path()
   timeout = 7.0
   sleep_interval = 0.1
-  shell = shell_path()
 
   def __init__(self, password, user=None, group=None, login=None):
     super().__init__()
@@ -65,7 +74,7 @@ class SudoHelper:
     env = self.__dict__.copy()
     env['shell'] = self.shell
     env['quote'] = shlex.quote
-    jinja2.expandf(env, self._askpass_tmpl, self.askpass_path)
+    jinja2.expandsf(env, self._askpass_tmpl, self.askpass_path)
     os.chmod(self.askpass_path, 0o700)
 
   def _check_for_ok(self):
@@ -125,7 +134,7 @@ class SudoHelper:
       else:
         sleep(self.sleep_interval)
     else:
-      raise SudoTimeout('Timeout awaiting sudo ok')
+      raise SudoTimeout('Timeout awaiting sudo ok (incorrect password?)')
 
   def prepare(self, argv):
     if self.ok_path is not None:
