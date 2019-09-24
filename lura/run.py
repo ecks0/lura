@@ -12,16 +12,19 @@ from lura import logs
 from lura import threads
 from lura.attrs import attr
 from lura.attrs import ottr
-from lura.shell import shell_path
-from lura.shell import shjoin
+from lura.attrs import deepcopy
 from lura.sudo import SudoHelper
+from lura.sudo import shell_path
+
+### FIXME Why aren't we seeing log messages from this module?
 
 log = logs.get_logger(__name__)
 
 merge = always_merger.merge
+shjoin = subp.list2cmdline
 
 def tee(source, targets, cond=lambda: True):
-  'Read from one source and write to many targets.'
+  '`readline` from one source and `write` to many targets.'
 
   while cond():
     line = source.readline()
@@ -31,7 +34,7 @@ def tee(source, targets, cond=lambda: True):
       target.write(line)
 
 class Tee(threads.Thread):
-  'Read from one source and write to many targets in a thread.'
+  '`readline` from one source and `write` to many targets in a thread.'
 
   def __init__(self, source, targets):
     super().__init__(target=self.work, name='Tee')
@@ -101,8 +104,6 @@ class Error(LuraError):
 class Run(threading.local):
   'The implementation of `run()`.'
 
-  default_shell_path = shell_path()
-
   # kwargs that we accept
   _kwargs = (
     'pty', 'env', 'env_replace', 'cwd', 'shell', 'stdin', 'stdout', 'stderr',
@@ -130,6 +131,11 @@ class Run(threading.local):
     sudo_login    = False,
   )
 
+  shell = shell_path()
+
+  # for stdio threads
+  join_timeout = 0.5
+
   def __init__(self):
     super().__init__()
     # context managers set their values here
@@ -139,26 +145,29 @@ class Run(threading.local):
     'Run with `subprocess.Popen`.'
 
     argv = ctx.args if ctx.shell else ctx.argv
-    proc = subp.Popen(
-      argv, env=ctx.env, cwd=ctx.cwd, shell=ctx.shell, stdout=subp.PIPE,
-      stderr=subp.PIPE, stdin=ctx.stdin, encoding=ctx.encoding)
-    if ctx.sudo:
-      ctx.sudo_helper.wait()
     outbuf, errbuf = io.StringIO(), io.StringIO()
     stdout = [outbuf] + ctx.stdout
     stderr = [errbuf] + ctx.stderr
-    threads = (Tee.spawn(proc.stdout, stdout), Tee.spawn(proc.stderr, stderr))
+    proc = None
+    threads = ()
     try:
+      proc = subp.Popen(
+        argv, env=ctx.env, cwd=ctx.cwd, shell=ctx.shell, stdout=subp.PIPE,
+        stderr=subp.PIPE, stdin=ctx.stdin, encoding=ctx.encoding)
+      if ctx.sudo:
+        ctx.sudo_helper.wait()
+      threads = (Tee.spawn(proc.stdout, stdout), Tee.spawn(proc.stderr, stderr))
       return self.Result(ctx, proc.wait(), outbuf.getvalue(), errbuf.getvalue())
     finally:
       outbuf.close()
       errbuf.close()
-      if ctx.sudo:
-        ctx.pop('sudo_helper')
       for thread in threads:
         thread.stop()
-        thread.join()
-      proc.kill()
+        thread.join(self.join_timeout)
+        if thread.is_alive():
+          log.warn(f'Failed joining tee thread: {thread}')
+      if proc:
+        proc.kill()
 
   def _ptyprocess(self, ctx):
     'Run with `PtyProcessUnicode`.'
@@ -166,29 +175,28 @@ class Run(threading.local):
     if ctx.stdin:
       raise NotImplementedError('stdin not implemented for pty processes')
     if shell:
-      ctx.argv = [self.default_shell_path, '-c', ctx.args]
+      ctx.argv = [self.shell, '-c', ctx.args]
       ctx.args = shjoin(ctx.argv)
-    proc = PtyProcessUnicode.spawn(argv, env=ctx.env, cwd=ctx.cwd)
-    if ctx.sudo:
-      ctx.sudo_helper.wait()
     outbuf = io.StringIO()
     stdout = [outbuf] + ctx.stdout
-    reader = attr(readline=lambda: f'{proc.readline()[:-2]}{os.linesep}')
+    proc = None
     try:
-      tee(reader, stdout)
-    except EOFError:
-      pass
-    try:
+      proc = PtyProcessUnicode.spawn(argv, env=ctx.env, cwd=ctx.cwd)
+      if ctx.sudo:
+        ctx.sudo_helper.wait()
+      reader = attr(readline=lambda: f'{proc.readline()[:-2]}{os.linesep}')
+      try:
+        tee(reader, stdout)
+      except EOFError:
+        pass
       return self.Result(ctx, proc.wait(), outbuf.getvalue(), '')
     finally:
       outbuf.close()
-      if ctx.sudo:
-        ctx.pop('sudo_helper')
-      try:
-        proc.kill(9)
-      except Exception:
-        log.debug(
-          'Unhandled exception while killing pty process', exc_info=True)
+      if proc:
+        try:
+          proc.kill(9)
+        except Exception:
+          log.warn('Failed killing pty process', exc_info=True)
 
   def _check_args(self, kwargs):
     'Validate arg names in `self.defaults`, `self.context`, and `kwargs`.'
@@ -201,7 +209,38 @@ class Run(threading.local):
     check_args('context', self.context)
     check_args('kwargs', kwargs)
 
-  def _setup_args_argv(self, ctx, argv):
+  def _build_context(self, kwargs):
+    defaults = deepcopy(self.defaults)
+    context = deepcopy(self.context)
+    return merge(defaults, merge(context, kwargs))
+
+  def _env_setup(self, ctx):
+    'Setup the environment the process will run in.'
+
+    if ctx.env is None:
+      ctx.env = {}
+    if not ctx.env_replace:
+      env = {}
+      env.update(os.environ)
+      env.update(ctx.env)
+      ctx.env = env
+
+  def _sudo_setup(self, ctx, argv):
+    'Setup sudo, returning the new sudo argv.'
+
+    ctx.sudo_helper = SudoHelper(
+      user=ctx.sudo_user, group=ctx.sudo_group, password=ctx.sudo_password,
+      login=ctx.sudo_login)
+    argv, askpass_path = ctx.sudo_helper.prepare(argv)
+    if askpass_path:
+      ctx.env['SUDO_ASKPASS'] = askpass_path
+    return argv
+
+  def _sudo_cleanup(self, ctx):
+    ctx.sudo_helper.cleanup()
+    del ctx['sudo_helper']
+
+  def _args_argv(self, ctx, argv):
     'ctx.args is always a string, ctx.argv is always a list.'
 
     if isinstance(argv, str):
@@ -215,29 +254,22 @@ class Run(threading.local):
     'Entry point for `run()`.'
 
     self._check_args(kwargs)
-    ctx = attr(merge(self.defaults, merge(self.context, kwargs)))
-    if ctx.env is None:
-      ctx.env = {}
-    if not ctx.env_replace:
-      env = {}
-      env.update(os.environ)
-      env.update(ctx.env)
-      ctx.env = env
+    ctx = self._build_context(kwargs)
+    self._env_setup(ctx)
     if ctx.sudo:
-      ctx.sudo_helper = SudoHelper(
-        user=ctx.sudo_user, group=ctx.sudo_group, password=ctx.sudo_password,
-        login=ctx.sudo_login)
-      argv, askpass_path = ctx.sudo_helper.prepare(argv)
-      if askpass_path:
-        ctx.env['SUDO_ASKPASS'] = askpass_path
-    self._setup_args_argv(ctx, argv)
-    if ctx.get('pty'):
-      result = self._ptyprocess(ctx)
-    else:
-      result = self._subprocess(ctx)
-    if ctx.enforce and result.code != ctx.enforce_code:
-      raise self.Error(result)
-    return result
+      argv = self._sudo_setup(ctx, argv)
+    try:
+      self._args_argv(ctx, argv)
+      if ctx.get('pty'):
+        result = self._ptyprocess(ctx)
+      else:
+        result = self._subprocess(ctx)
+      if ctx.enforce and result.code != ctx.enforce_code:
+        raise self.Error(result)
+      return result
+    finally:
+      if ctx.sudo:
+        self._sudo_cleanup(ctx)
 
   __call__ = run
 
@@ -247,9 +279,9 @@ class Run(threading.local):
 
     old = self.context
     new = {'enforce': False}
-    self.context = merge(old, new)
+    self.context = merge(deepcopy(old), new)
     try:
-      yield self
+      yield
     finally:
       self.context = old
 
@@ -259,9 +291,9 @@ class Run(threading.local):
 
     old = self.context
     new = {'enforce': True, 'enforce_code': enforce_code}
-    self.context = merge(old, new)
+    self.context = merge(deepcopy(old), new)
     try:
-      yield self
+      yield
     finally:
       self.context = old
 
@@ -271,9 +303,21 @@ class Run(threading.local):
 
     old = self.context
     new = {'cwd': cwd}
-    self.context = merge(old, new)
+    self.context = merge(deepcopy(old), new)
     try:
-      yield self
+      yield
+    finally:
+      self.context = old
+
+  @contextmanager
+  def shell(self):
+    "Run all commands with the user's shell."
+
+    old = self.context
+    new = {'shell': True}
+    self.context = merge(deepcopy(old), new)
+    try:
+      yield
     finally:
       self.context = old
 
@@ -291,9 +335,9 @@ class Run(threading.local):
       sudo_password = sudo_password,
       sudo_login = sudo_login,
     )
-    self.context = merge(old, new)
+    self.context = merge(deepcopy(old), new)
     try:
-      yield self
+      yield
     finally:
       self.context = old
 
@@ -306,9 +350,9 @@ class Run(threading.local):
       'stdout': [LogWriter(logger, log_level, 'out')],
       'stderr': [LogWriter(logger, log_level, 'err')],
     }
-    self.context = merge(old, new)
+    self.context = merge(deepcopy(old), new)
     try:
-      yield self
+      yield
     finally:
       self.context = old
 
