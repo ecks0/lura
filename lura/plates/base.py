@@ -43,10 +43,10 @@ class BoundExpander:
     self.env = env
 
   def expandss(self, tmpl):
-    return self.expander.expands(self.env, tmpl)
+    return self.expander.expandss(self.env, tmpl)
 
   def expandsf(self, tmpl, dst):
-    return self.expander.expandf(self.env, tmpl, dst)
+    return self.expander.expandsf(self.env, tmpl, dst)
 
   def expandfs(self, src):
     return self.expander.expandfs(self.env, src)
