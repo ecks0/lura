@@ -1,8 +1,7 @@
 import os
-from lura import fs
-from lura import io
 from lura import logs
-from lura.run import run
+from lura import fs
+from lura import run
 
 log = logs.get_logger(__name__)
 
@@ -23,11 +22,10 @@ def convert_opts(opts):
   ]
 
 def git(cmd, args=[], opts={}, env=None, cwd=None):
-  log.noise(f'git({cmd}, {args}, {opts}, {env}, {cwd})')
   argv = [git.bin, cmd]
   argv.extend(args)
   argv.extend(convert_opts(opts))
-  with run.Log(log, git.log_level):
+  with run.log(log, git.log_level):
     return run(argv, env=env, cwd=cwd)
 
 git.bin = 'git'
@@ -45,7 +43,7 @@ def checkout(*args, env=None, cwd=None, **opts):
 def push(*args, env=None, cwd=None, **opts):
   git('push', args, opts, env, cwd)
 
-class SshKeyEnv(fs.ScratchDir):
+class SshKeyEnv(fs.TempDir):
 
   def __init__(self, key_data=None):
     super().__init__('lura-git', False)

@@ -22,7 +22,7 @@ def kubectl(cmd, args=[], opts={}, cwd=None, enforce=True):
   argv = [kubectl.bin, cmd]
   argv.extend(args)
   argv.extend(convert_opts(opts))
-  with run.Log(log, kubectl.log_level):
+  with run.log(log, kubectl.log_level):
     return run(argv, cwd=cwd, enforce=enforce)
 
 kubectl.bin = 'kubectl'

@@ -25,7 +25,7 @@ def systemctl(cmd, args, opts, enforce=True, log_level=None):
   argv.extend(args)
   argv.extend(convert_opts(opts))
   log_level = log_level or systemctl.log_level
-  with run.Log(log, log_level):
+  with run.log(log, log_level):
     return run(argv, enforce=enforce)
 
 systemctl.bin = 'systemctl'
@@ -37,7 +37,7 @@ def journalctl(args, opts, log_level=None):
   argv.extend(args)
   argv.extend(convert_opts(opts))
   log_level = log_level or journalctl.log_level
-  with run.Log(log, log_level):
+  with run.log(log, log_level):
     return run(argv)
 
 journalctl.bin = 'journalctl'

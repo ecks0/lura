@@ -30,7 +30,7 @@ def docker_compose(cmd, file=None, args=[], opts={}, cwd=None):
   argv.append(cmd)
   argv.extend(args)
   argv.extend(convert_opts(opts))
-  with run.Log(log, docker_compose.log_level):
+  with run.log(log, docker_compose.log_level):
     return run(argv, cwd=cwd)
 
 docker_compose.bin = 'docker-compose'

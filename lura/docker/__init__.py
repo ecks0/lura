@@ -1,5 +1,6 @@
 from lura import logs
 from lura.run import run
+
 log = logs.get_logger(__name__)
 
 def convert_opts(opts):
@@ -26,11 +27,10 @@ def convert_opts(opts):
   return argv
 
 def docker(cmd, args=[], opts={}, cwd=None, enforce=True):
-  log.noise(f'docker({cmd}, {args}, {opts}, {cwd}, {enforce})')
   argv = [docker.bin, cmd]
   argv.extend(args)
   argv.extend(convert_opts(opts))
-  with run.Log(log, docker.log_level):
+  with run.log(log, docker.log_level):
     return run(argv, cwd=cwd, enforce=enforce)
 
 docker.bin = 'docker'
