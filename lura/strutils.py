@@ -6,7 +6,7 @@ def prefix(string, prefix, linesep=os.linesep):
 
   return linesep.join(f'{prefix}{line}' for line in string.split(linesep))
 
-def to_bool(val):
+def as_bool(val):
   'Use `strtobool` to parse `str`s into `bool`s.'
 
   if val == '':

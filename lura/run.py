@@ -11,8 +11,8 @@ from lura import formats
 from lura import logs
 from lura import threads
 from lura.attrs import attr
-from lura.attrs import ottr
 from lura.attrs import deepcopy
+from lura.attrs import ottr
 from lura.sudo import SudoHelper
 from lura.sudo import shell_path
 
@@ -54,7 +54,7 @@ class LogWriter:
 
   def __init__(self, logger, level, tag):
     super().__init__()
-    self.log = getattr(logger, logs.get_level_name(level).lower())
+    self.log = logger.method_for_level(level)
     self.tag = tag
 
   def write(self, line):
@@ -63,8 +63,7 @@ class LogWriter:
 class Result:
   'The value returned by `run()`.'
 
-  #order = ('context', 'args', 'argv', 'code', 'stdout', 'stderr')
-  order = ('args', 'argv', 'code', 'stdout', 'stderr')
+  members = ('args', 'argv', 'code', 'stdout', 'stderr')
 
   def __init__(self, context, code, stdout, stderr):
     super().__init__()
@@ -80,7 +79,7 @@ class Result:
       context.sudo_password = '<scrubbed>'
 
   def as_dict(self):
-    return ottr((_, getattr(self, _)) for _ in self.order)
+    return ottr((_, getattr(self, _)) for _ in self.members)
 
   def format(self, fmt='yaml'):
     tag = 'run.{}'.format(type(self).__name__.lower())
@@ -142,10 +141,10 @@ class Run(threading.local):
   def _subprocess(self, ctx):
     'Run with `subprocess.Popen`.'
 
-    argv = ctx.args if ctx.shell else ctx.argv
     outbuf, errbuf = io.StringIO(), io.StringIO()
     stdout = [outbuf] + ctx.stdout
     stderr = [errbuf] + ctx.stderr
+    argv = ctx.args if ctx.shell else ctx.argv
     proc = None
     threads = ()
     try:
