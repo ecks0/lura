@@ -3,7 +3,8 @@ import os
 from abc import abstractmethod
 from lura import fs
 from lura import logs
-from lura.run import run
+from lura import run
+from lura.formats import json
 
 log = logs.get_logger(__name__)
 
@@ -33,7 +34,7 @@ def get(*args, **opts):
     return kubectl('get', args, opts).stdout
   else:
     opts['output'] = 'json'
-    return kubectl('get', args, opts).stdout.json()
+    return json.loads(kubectl('get', args, opts).stdout)
 
 def describe(*args, **opts):
   return kubectl('describe', args, opts).stdout
@@ -47,10 +48,10 @@ def delete(*args, enforce=True, **opts):
 def logs(*args, **opts):
   return kubectl('logs', args, opts).stdout
 
-class ResourceFiles(fs.ScratchDir):
+class ResourceFiles(fs.TempDir):
 
   def __init__(self, resources, keep=False):
-    super().__init__('lura-kube', keep)
+    super().__init__(prefix='lura-kube.', keep=keep)
     self.resources = resources
 
   def __enter__(self):
@@ -60,7 +61,7 @@ class ResourceFiles(fs.ScratchDir):
     for name, resource in self.resources:
       dst = os.path.join(temp_dir, f'{name}.yaml')
       log.debug(f'    {dst}')
-      fs.dump(dst, resource)
+      fs.dumps(dst, resource)
       files.append(dst)
     del self.resources
     return files
