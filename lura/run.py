@@ -4,6 +4,7 @@ import shlex
 import subprocess as subp
 import sys
 import threading
+from collections import MutableSequence
 from contextlib import contextmanager
 from deepmerge import always_merger
 from lura import LuraError
@@ -15,6 +16,7 @@ from lura.attrs import deepcopy
 from lura.attrs import ottr
 from lura.sudo import SudoHelper
 from lura.sudo import shell_path
+from types import GeneratorType
 
 log = logs.get_logger(__name__)
 
@@ -63,7 +65,7 @@ class LogWriter:
 class Result:
   'The value returned by `run()`.'
 
-  members = ('args', 'argv', 'code', 'stdout', 'stderr')
+  as_dict_members = ('args', 'argv', 'code', 'stdout', 'stderr')
 
   def __init__(self, context, code, stdout, stderr):
     super().__init__()
@@ -79,14 +81,14 @@ class Result:
       context.sudo_password = '<scrubbed>'
 
   def as_dict(self):
-    return ottr((_, getattr(self, _)) for _ in self.members)
+    return ottr((_, getattr(self, _)) for _ in self.as_dict_members)
 
   def format(self, fmt='yaml'):
     tag = 'run.{}'.format(type(self).__name__.lower())
     return formats.for_ext(fmt).dumps({tag: self.as_dict()})
 
   def print(self, fmt='yaml', file=None):
-    file = sys.stdout if file is None else file
+    file = file or sys.stdout
     file.write(self.format(fmt=fmt))
 
 class Error(LuraError):
@@ -128,10 +130,10 @@ class Run(threading.local):
     sudo_login    = False,
   )
 
-  shell = shell_path()
+  default_shell = shell_path()
 
   # for stdio threads
-  join_timeout = 0.5
+  stdio_join_timeout = 0.5
 
   def __init__(self):
     super().__init__()
@@ -157,12 +159,13 @@ class Run(threading.local):
       code = proc.wait()
       for thread in threads:
         thread.join()
+      proc = None
       threads = ()
       return self.Result(ctx, code, outbuf.getvalue(), errbuf.getvalue())
     finally:
       for thread in threads:
         thread.stop()
-        thread.join(self.join_timeout)
+        thread.join(self.stdio_join_timeout)
         if thread.is_alive():
           log.debug(f'Failed joining tee thread: {thread}')
       outbuf.close()
@@ -176,7 +179,7 @@ class Run(threading.local):
     if ctx.stdin:
       raise NotImplementedError('stdin not implemented for pty processes')
     if ctx.shell:
-      ctx.argv = [self.shell, '-c', ctx.args]
+      ctx.argv = [self.default_shell, '-c', ctx.args]
       ctx.args = shjoin(ctx.argv)
     outbuf = io.StringIO()
     stdout = [outbuf] + ctx.stdout
@@ -190,7 +193,9 @@ class Run(threading.local):
         tee(reader, stdout)
       except EOFError:
         pass
-      return self.Result(ctx, proc.wait(), outbuf.getvalue(), '')
+      code = proc.wait()
+      proc = None
+      return self.Result(ctx, code, outbuf.getvalue(), '')
     finally:
       outbuf.close()
       if proc:
@@ -241,7 +246,7 @@ class Run(threading.local):
     ctx.sudo_helper.cleanup()
     del ctx['sudo_helper']
 
-  def _args_argv(self, ctx, argv):
+  def _argv_setup(self, ctx, argv):
     'ctx.args is always a string, ctx.argv is always a list.'
 
     if isinstance(argv, str):
@@ -260,7 +265,7 @@ class Run(threading.local):
     if ctx.sudo:
       argv = self._sudo_setup(ctx, argv)
     try:
-      self._args_argv(ctx, argv)
+      self._argv_setup(ctx, argv)
       if ctx.pty:
         result = self._ptyprocess(ctx)
       else:
@@ -288,7 +293,7 @@ class Run(threading.local):
 
   @contextmanager
   def enforce(self, enforce_code=0):
-    'Enforce the given exit code while in this context.'
+    'Enforce exit code `enforce_code` while in this context.'
 
     old = self.context
     new = {'enforce': True, 'enforce_code': enforce_code}
@@ -312,7 +317,7 @@ class Run(threading.local):
 
   @contextmanager
   def shell(self):
-    "Run all commands with the user's shell."
+    "Run all commands with the user's shell while in this context."
 
     old = self.context
     new = {'shell': True}
@@ -336,6 +341,35 @@ class Run(threading.local):
       sudo_password = sudo_password,
       sudo_login = sudo_login,
     )
+    self.context = merge(deepcopy(old), new)
+    try:
+      yield
+    finally:
+      self.context = old
+
+  @contextmanager
+  def std(self, stdout=None, stderr=None):
+    '''
+    Send stdout and/or stderr to the given file objects or lists of file
+    objects while in this context.
+    '''
+
+    if stdout:
+      if isinstance(stdout, (Sequence, GeneratorType)):
+        stdout = list(stdout)
+      else:
+        stdout = [stdout]
+    else:
+      stdout = []
+    if stderr:
+      if isinstance(stderr, (Sequence, GeneratorType)):
+        stderr = list(stderr)
+      else:
+        stderr = [stderr]
+    else:
+      stderr = []
+    old = self.context
+    new = {'stdout': stdout, 'stderr': stderr}
     self.context = merge(deepcopy(old), new)
     try:
       yield
