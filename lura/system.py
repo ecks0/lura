@@ -214,14 +214,14 @@ class Ssh(System):
     self.sudo_user = sudo_user
 
   # we want put and get to honor self.use_sudo. fabric's put and get are not
-  # sudoable, so far as I can tell. the blunt methods below should work in the
+  # sudoable, so far as I can tell. the crude methods below should work in the
   # sudo and non-sudo cases, but this should be improved.
 
   def put(self, src, dst):
     with self.tempdir() as temp_dir:
       tmpdst = f'{temp_dir}/{os.path.basename(dst)}'
       self.client.put(src, tmpdst)
-    self.cpf(tmpdst, dst)
+      self.cpf(tmpdst, dst)
 
   def get(self, dst, src):
     with self.nosudo():
