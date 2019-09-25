@@ -154,15 +154,19 @@ class Run(threading.local):
       if ctx.sudo:
         ctx.sudo_helper.wait()
       threads = (Tee.spawn(proc.stdout, stdout), Tee.spawn(proc.stderr, stderr))
-      return self.Result(ctx, proc.wait(), outbuf.getvalue(), errbuf.getvalue())
+      code = proc.wait()
+      for thread in threads:
+        thread.join()
+      threads = ()
+      return self.Result(ctx, code, outbuf.getvalue(), errbuf.getvalue())
     finally:
-      outbuf.close()
-      errbuf.close()
       for thread in threads:
         thread.stop()
         thread.join(self.join_timeout)
         if thread.is_alive():
           log.debug(f'Failed joining tee thread: {thread}')
+      outbuf.close()
+      errbuf.close()
       if proc:
         proc.kill()
 
