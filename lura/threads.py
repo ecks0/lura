@@ -38,12 +38,19 @@ class Thread(threading.Thread):
 
   def __work(self):
     try:
+      self._thread_target = self._thread_target or self.work
       self._thread_result = self._thread_target(
         *self._thread_args, **self._thread_kwargs)
     except Exception:
       self._thread_error = sys.exc_info()
       if self._thread_reraise:
         raise
+
+  def start(self):
+    if not (self._thread_target or getattr(self, 'work', None)):
+      raise ValueError(
+        'No target was given and instance has no "work" attribute')
+    super().start()
 
   @property
   def result(self):
