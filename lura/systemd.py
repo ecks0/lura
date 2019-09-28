@@ -62,6 +62,12 @@ def started(svc):
   res = systemctl('status', [svc], {}, enforce=False, log_level=(log.DEBUG))
   return res.code == 0
 
+def enable(*args, **opts):
+  systemctl('enable', args, opts)
+
+def disable(*args, **opts):
+  systemctl('disable', args, opts)
+
 def daemon_reload(*args, **opts):
   systemctl('daemon-reload', args, opts)
 
@@ -86,6 +92,12 @@ class Service:
 
   def reload(self):
     reload(self.name)
+
+  def enable(self):
+    enable(self.name)
+
+  def disable(self):
+    disable(self.name)
 
   def is_started(self):
     return started(self.name)
