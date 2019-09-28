@@ -132,7 +132,7 @@ class Scheduler:
         schedule.run_pending()
         sleep(1)
     except Exception:
-      log.excetion('Unhanlded exception in task scheduler')
+      log('Unhanlded exception in task scheduler', exc_info=True)
       self._on_error()
       raise
     finally:
