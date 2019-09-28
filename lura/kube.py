@@ -5,6 +5,7 @@ from lura import fs
 from lura import logs
 from lura import run
 from lura.formats import json
+from lura.time import poll
 
 log = logs.get_logger(__name__)
 
@@ -68,6 +69,8 @@ class ResourceFiles(fs.TempDir):
 
 class Application:
 
+  delete_timeout = 60.0
+
   def __init__(self, name):
     super().__init__()
     self.name = name
@@ -109,6 +112,9 @@ class Application:
     with ResourceFiles(self._get_resources()) as files:
       for file in reversed(files):
         delete(filename=file, enforce=enforce)
+    timeout = self.delete_timeout
+    if not poll(lambda: not self.is_applied(), timeout=timeout, pause=1):
+      raise TimeoutError(f'Application did not stop within {timeout} seconds')
 
   def logs(self, count):
     pods = self._get_pods()
