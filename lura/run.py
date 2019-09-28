@@ -56,7 +56,7 @@ class LogWriter:
 
   def __init__(self, logger, level, tag):
     super().__init__()
-    self.log = logger.method_for_level(level)
+    self.log = logger[level]
     self.tag = tag
 
   def write(self, line):
