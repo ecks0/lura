@@ -216,7 +216,9 @@ class Logging:
     self.get_logger(logger).removeHandler(handler)
 
 def method_for_level(self, level):
+  # FIXME it works but could use some love
   name = logging._levelToName[level].lower()
   return getattr(self, name)
 
 logging.Logger.method_for_level = method_for_level
+logging.Logger.__getitem__ = method_for_level
