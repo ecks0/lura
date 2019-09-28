@@ -34,10 +34,10 @@ class Task(threads.Thread):
     pass
 
   @abstractmethod
-  def run(self):
+  def work(self):
     pass
 
-  def work(self):
+  def run(self):
     log = logger[self.log_level]
     try:
       log(f'{type(self).__name__} starting')
@@ -117,11 +117,11 @@ class Scheduler:
       log('Asked to apply schedule when already applied')
       return
     for job, task in self._schedule:
-      job.do(task.spawn)
+      job.do(lambda: task.spawn(self))
       log('Scheduled ' + self._format_task(job, task))
     self._applied = True
 
-  def work(self):
+  def run(self):
     self._working = True
     log = logger[self.log_level]
     log('Task scheduler starting')
@@ -138,7 +138,7 @@ class Scheduler:
     finally:
       log('Task scheduler stopping')
 
-  start = work
+  start = run
 
   def stop(self):
     self._working = False

@@ -37,12 +37,12 @@ class Tee(threads.Thread):
   '`readline` from one source and `write` to many targets in a thread.'
 
   def __init__(self, source, targets):
-    super().__init__(target=self.work, name='Tee')
+    super().__init__(name='Tee')
     self.source = source
     self.targets = targets
     self._work = False
 
-  def work(self):
+  def run(self):
     self._work = True
     tee(self.source, self.targets, lambda: self._work is True)
 

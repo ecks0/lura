@@ -120,7 +120,7 @@ class Messenger:
         log(f'Unhandled exception for {service} message', exc_info=True)
     return sent
 
-  def _run(self):
+  def _work(self):
     'Get a set of kwargs from the queue and try to send them.'
 
     try:
@@ -138,9 +138,9 @@ class Messenger:
     'Run the work loop.'
 
     while self._working:
-      self._run()
+      self._work()
 
-  def work(self):
+  def run(self):
     'Main entry point for the messaging work loop.'
 
     log = logger[self.log_level]
@@ -154,7 +154,7 @@ class Messenger:
     finally:
       log('Messenger stopping')
 
-  start = work
+  start = run
 
   def stop(self):
     'Break the work loop.'

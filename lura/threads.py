@@ -29,7 +29,7 @@ class Thread(threading.Thread):
     daemon=None, reraise=True
   ):
     super().__init__(group=group, name=name, daemon=daemon, target=self.__work)
-    self._thread_target = target
+    self._thread_target = target or self.run
     self._thread_args = args
     self._thread_kwargs = kwargs
     self._thread_reraise = reraise
@@ -38,7 +38,6 @@ class Thread(threading.Thread):
 
   def __work(self):
     try:
-      self._thread_target = self._thread_target or self.work
       self._thread_result = self._thread_target(
         *self._thread_args, **self._thread_kwargs)
     except Exception:
