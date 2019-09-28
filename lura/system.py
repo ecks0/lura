@@ -96,7 +96,7 @@ class System:
     argv = ' '.join(argv)
     self.run(argv)
 
-  def mv(self, src, dst):
+  def mvf(self, src, dst):
     self.run(f'mv -f {quote(src)} {quote(dst)}')
 
   def rmf(self, path):
@@ -169,7 +169,7 @@ class System:
     self.run(f'mkdir -p {quote(dir)}')
 
   def hostname(self):
-    raise NotImplementedError()
+    return self.run('cat /etc/hostname').stdout.rstrip()
 
   @property
   def shell(self):
