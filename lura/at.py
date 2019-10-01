@@ -13,7 +13,7 @@ class Task(threads.Thread):
   This is a base class for scheduled tasks, which are ephemeral threads
   spawned at the appropriate time and then discarded by the `Scheduler`.
 
-  Subclasses shall implement `run()` to perform the scheduled task.
+  Subclasses shall implement `work()` to perform the scheduled task.
   '''
 
   log_level = logger.INFO
