@@ -41,7 +41,7 @@ class Task(threads.Thread):
     log = logger[self.log_level]
     try:
       log(f'{type(self).__name__} starting')
-      self.run()
+      self.work()
     except Exception:
       log(f'Unhandled exception in {type(self).__name__}', exc_info=True)
       self._on_error()
