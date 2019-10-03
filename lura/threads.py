@@ -1,22 +1,35 @@
+import ctypes
+import inspect
 import sys
 import threading
+from lura import LuraError
+from lura import logs
 from lura.attrs import attr
-from multiprocessing.pool import ThreadPool
+from lura.time import poll
+from time import sleep
 
-def map(thread_count, func, items, chunksize=None):
-  with ThreadPool(thread_count) as p:
-    return p.map(func, items, chunksize=chunksize)
+log = logs.get_logger(__name__)
 
-def imap(thread_count, func, items, chunksize=1):
-  with ThreadPool(thread_count) as p:
-    return p.imap(func, items, chunksize=chunksize)
+def _async_raise(tid, exc_type):
+  '''
+  Raise an exception in thread with id `tid`. Return `True` if the exception
+  was sent to the thread, or `False` if thead id `tid` was not found.
+  '''
 
-pool = attr(
-  map = map,
-  imap = imap,
-)
+  if not inspect.isclass(exc_type):
+    raise TypeError(f'exc_type is not a class: {exc_type}')
+  res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+    ctypes.c_long(tid), ctypes.py_object(exc_type))
+  return res != 0
+
+class Cancelled(LuraError):
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
 
 class Thread(threading.Thread):
+
+  cancel_poll_interval = 0.05
 
   @classmethod
   def spawn(cls, *args, **kwargs):
@@ -26,17 +39,18 @@ class Thread(threading.Thread):
 
   def __init__(
     self, group=None, target=None, name=None, args=(), kwargs={}, *,
-    daemon=None, reraise=True
+    daemon=None, reraise=False
   ):
-    super().__init__(group=group, name=name, daemon=daemon, target=self.__work)
-    self._thread_target = target or self.run
+    super().__init__(
+      group=group, name=name, daemon=daemon)
+    self._thread_target = target
     self._thread_args = args
     self._thread_kwargs = kwargs
     self._thread_reraise = reraise
     self._thread_result = None
     self._thread_error = None
 
-  def __work(self):
+  def _thread_work(self):
     try:
       self._thread_result = self._thread_target(
         *self._thread_args, **self._thread_kwargs)
@@ -45,10 +59,70 @@ class Thread(threading.Thread):
       if self._thread_reraise:
         raise
 
+  def _thread_get_id(self):
+    if not self.isAlive():
+      return None
+    if hasattr(self, '_thread_id'):
+      return self._thread_id
+    for tid, tobj in threading._active.items():
+      if tobj is self:
+        return tid
+    return None
+
+  def cancel(self, timeout=None, exc_type=Cancelled, force=False):
+    '''
+    Cancel by raising an exception in the running thread. This approach is
+    not recommended as it is not reliable and can fail in surprising ways.
+    However, it can work well when designed for. Two things to note:
+
+    - If the thread is executing C code (`sleep()`, `socket.accept()`), the
+      exception will not be raised until execution returns to the python
+      interpreter.
+
+    - Any C code running in the thread which invokes `PyErr_Clear` on the
+      C api before returning will effectively clear the raised exception.
+
+    When `force` is `False`, one exception will be raised in the thread. When
+    `force` is `True`, the thread will be barraged with exceptions until it
+    stops, or the timeout expires.
+
+    In the former case, the thread will have an opportunity to handle (or
+    discard) the raised exception before returning. In the latter case,
+    any exception handlers will themselves be interrupted by the barrage of
+    exceptions.
+
+    See the original implementation notes for more details:
+
+    http://tomerfiliba.com/recipes/Thread2/
+    '''
+
+    def _cancel(tid):
+      _async_raise(tid, exc_type)
+      sleep(0.0001)
+      return not self.isAlive()
+
+    tid = self._thread_get_id()
+    if tid is None:
+      return self.join(timeout)
+    if not force:
+      _cancel(tid)
+      return self.join(timeout)
+    timeout = -1 if timeout is None else timeout
+    return poll(_cancel, timeout=timeout, pause=self.cancel_poll_interval)
+
+  def run(self):
+    '''
+    If no target is passed to the constructor, this method is used as the
+    target.
+    '''
+
+    raise NotImplementedError()
+
   def start(self):
-    if not (self._thread_target or getattr(self, 'work', None)):
-      raise ValueError(
-        'No target was given and instance has no "work" attribute')
+    # FIXME !!!
+    if not self._thread_target:
+      self._thread_target = self.run
+    self.run = self._thread_work
     super().start()
 
   @property
