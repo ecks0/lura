@@ -65,7 +65,7 @@ class Deployment(utils.Kwargs):
     finally:
       self._reset()
 
-  def is_applied(self, config, systems):
+  def is_applied(self, config, systems, *args, **kwargs):
     try:
       ok, err = self._run(
         self.executor().is_applied, config, systems, args, kwargs)
