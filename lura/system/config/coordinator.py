@@ -1,6 +1,7 @@
 import threading
 from lura import threads
 from lura import logs
+from lura.attrs import ottr
 from lura.time import poll
 
 log = logs.get_logger(__name__)
@@ -9,7 +10,7 @@ class Coordinator:
 
   def __init__(self, configs, synchronize, fail_early):
     super().__init__()
-    self.conditions = dict(
+    self.conditions = ottr(
       ready = threading.Condition(),
       sync = threading.Condition(),
       done = threading.Condition(),
@@ -25,7 +26,7 @@ class Coordinator:
 
   def wait(self, cond, timeout=None):
     if cond == 'sync' and not self.synchronize:
-      return True
+      return
     with self.conditions[cond]:
       if not self.conditions[cond].wait(timeout):
         raise TimeoutError(
@@ -44,3 +45,10 @@ class Coordinator:
   def notify(self, cond):
     with self.conditions[cond]:
       self.conditions[cond].notify_all()
+
+  def cancel(self):
+    conds = self.conditions
+    with conds.ready, conds.sync, conds.done:
+      self.cancelled = True
+      for cond in conds.values():
+        cond.notify_all()

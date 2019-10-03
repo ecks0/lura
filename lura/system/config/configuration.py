@@ -5,6 +5,7 @@ from lura import fs
 from lura import logs
 from lura import strutils
 from lura import utils
+from lura.attrs import attr
 from lura.plates import jinja2
 from lura.system import packman
 from lura.time import Timer
@@ -12,13 +13,15 @@ from multiprocessing import pool
 from time import sleep
 
 log = logs.get_logger(__name__)
-pause = 0.05
 
 class Cancelled(RuntimeError): pass
 
 class BaseConfiguration(utils.Kwargs):
 
-  log_level = log.INFO
+  config_ready_timeout = 10.0
+  config_sync_timeout  = None
+  config_done_timeout  = None
+  log_level            = log.INFO
 
   def __init__(self, **kwargs):
     self._reset()
@@ -28,8 +31,8 @@ class BaseConfiguration(utils.Kwargs):
     self.system = None
     self.coordinator = None
     self.packages = None
-    self.force = None
-    self.purge = None
+    self.args = None
+    self.kwargs = None
 
   def log(self, log, msg, *args, **kwargs):
     if os.linesep in msg:
@@ -37,9 +40,9 @@ class BaseConfiguration(utils.Kwargs):
     else:
       msg = f'[{self.system.host}] {msg}'
     if isinstance(log, Logger):
-      log[self.log_level](msg)
+      log[self.log_level](msg, *args, **kwargs)
     elif callable(log):
-      log(msg)
+      log(msg, *args, **kwargs)
     else:
       raise TypeError('"log" must be a Logger or a callable')
 
@@ -53,26 +56,26 @@ class BaseConfiguration(utils.Kwargs):
       raise Cancelled()
 
   def _ready(self):
-    self._wait('ready', timeout=10)
+    self._wait('ready', timeout=self.config_ready_timeout)
 
   def sync(self):
-    self._wait('sync')
+    self._wait('sync', timeout=self.config_sync_timeout)
 
   def _done(self):
-    self._wait('done')
+    self._wait('done', timeout=self.config_done_timeout)
 
   def _cancel(self):
     if self.coordinator and self.coordinator.fail_early:
-      self.coordinator.cancelled = True
+      self.coordinator.cancel()
 
   def _run(
     self, system, coordinator, on_work, on_start, on_finish, on_error,
-    on_cancel, force=None, purge=None
+    on_cancel, args, kwargs
   ):
     self.system = system
     self.coordinator = coordinator
-    self.force = force
-    self.purge = purge
+    self.args = args
+    self.kwargs = attr(kwargs)
     try:
       self._ready()
       self.sync()
@@ -109,7 +112,7 @@ class BaseConfiguration(utils.Kwargs):
   def on_apply_cancel(self):
     pass
 
-  def apply(self, system, coordinator=None, force=False):
+  def apply(self, system, *args, coordinator=None, **kwargs):
     self._run(
       system,
       coordinator,
@@ -118,7 +121,8 @@ class BaseConfiguration(utils.Kwargs):
       self.on_apply_finish,
       self.on_apply_error,
       self.on_apply_cancel,
-      force,
+      args,
+      kwargs,
     )
 
   @abstractmethod
@@ -137,7 +141,7 @@ class BaseConfiguration(utils.Kwargs):
   def on_delete_cancel(self):
     pass
 
-  def delete(self, system, coordinator=None, force=False, purge=False):
+  def delete(self, system, *args, coordinator=None, **kwargs):
     self.log(log, f'Deleting configuration {self.name}')
     self._run(
       system,
@@ -147,8 +151,8 @@ class BaseConfiguration(utils.Kwargs):
       self.on_delete_finish,
       self.on_delete_error,
       self.on_delete_cancel,
-      force,
-      purge,
+      args,
+      kwargs,
     )
     self.log(log, f'Deleted configuration {self.name}')
 
@@ -168,7 +172,7 @@ class BaseConfiguration(utils.Kwargs):
   def on_is_applied(self):
     pass
 
-  def is_applied(self, system, coordinator=None):
+  def is_applied(self, system, *args, coordinator=None, **kwargs):
     return self._run(
       system,
       coordinator,
@@ -177,6 +181,8 @@ class BaseConfiguration(utils.Kwargs):
       self.on_is_applied_finish,
       self.on_is_applied_error,
       self.on_is_applied_cancel,
+      args,
+      kwargs,
     )
 
 class Configuration(BaseConfiguration):

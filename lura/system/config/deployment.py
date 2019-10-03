@@ -9,61 +9,60 @@ class Deployment(utils.Kwargs):
   synchronize = True
   fail_early  = True
   workers     = None
+  executor    = executor.ThreadExecutor
   log_level   = logger.INFO
 
   def __init__(self, **kwargs):
-    self.config = None
-    self.systems = None
-    self.force = None
-    self.purge = None
+    self._reset()
     super().__init__(**kwargs)
     if self.workers is not None:
       self.workers = min(self.workers, len(systems) or 1)
+
+  def _reset(self):
+    self.config = None
+    self.systems = None
+    self.args = None
+    self.kwargs = None
 
   def _format_result(self, res):
     ok = [self.systems[_] for _ in range(0, len(res)) if not res[_]]
     err = [(self.systems[_], res[_]) for _ in range(0, len(res)) if res[_]]
     return ok, err
 
-  def apply(self, config, systems, force=False):
+  def _run(self, method, config, systems, args, kwargs):
     self.config = config
     self.systems = systems
-    self.force = force
+    self.args = args
+    self.kwargs = kwargs
     try:
-      log = logger[self.log_level]
-      log(f'Applying deployment {self.config.name}')
-      res = executor.ThreadExecutor().apply(self)
+      res = method(self)
       ok, err = self._format_result(res)
-      if err:
-        log(f'Applied deployment {self.config.name} with errors')
-      else:
-        log(f'Applied deployment {self.config.name}')
       return ok, err
     finally:
-      self.config = None
-      self.systems = None
-      self.force = None
+      self._reset()
 
-  def delete(self, config, systems, force=False, purge=False):
-    self.config = config
-    self.systems = systems
-    self.force = force
-    self.purge = purge
+  def apply(self, config, systems, *args, **kwargs):
+    log = logger[self.log_level]
+    log(f'Applying deployment {config.name}')
+    ok, err = self._run(self.executor().apply, config, systems, args, kwargs)
+    if err:
+      log(f'Applied deployment {config.name} with errors')
+    else:
+      log(f'Applied deployment {config.name}')
+    return ok, err
+
+  def delete(self, config, systems, *args, **kwargs):
     try:
       log = logger[self.log_level]
-      log(f'Deleting deployment {self.config.name}')
-      res = executor.ThreadExecutor().delete(self)
-      ok, err = self._format_results(res)
+      log(f'Deleting deployment {config.name}')
+      ok, err = self._run(self.executor().delete, config, systems, args, kwargs)
       if err:
-        log(f'Deleted deployment {self.config.name} with errors')
+        log(f'Deleted deployment {config.name} with errors')
       else:
-        log(f'Deleted deployment {self.config.name}')
+        log(f'Deleted deployment {config.name}')
       return ok, err
     finally:
-      self.config = None
-      self.systems = None
-      self.force = None
-      self.purge = None
+      self._reset()
 
   def is_applied(self, config, systems):
     self.config = config
@@ -75,5 +74,4 @@ class Deployment(utils.Kwargs):
         raise RuntimeError('Some hosts failed with exceptions')
       return all(ok)
     finally:
-      self.config = None
-      self.systems = None
+      self._reset()
