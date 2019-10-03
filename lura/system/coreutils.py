@@ -298,12 +298,6 @@ class Local(System):
     res.return_code = res.code # like fabric
     return res
 
-  def read(self, path):
-    return fs.loads(path)
-
-  def write(self, path, data):
-    return fs.dumps(path, data)
-
 class Ssh(System):
 
   def __init__(self, *args, sudo=False, **kwargs):
