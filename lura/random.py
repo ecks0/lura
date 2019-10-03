@@ -1,4 +1,5 @@
-import random, math
+import math
+import random
 
 def rrange(start, stop=None, step=None):
   '''
