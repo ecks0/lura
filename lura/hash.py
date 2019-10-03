@@ -13,6 +13,8 @@ def hashs(buf, alg='sha512'):
   o.update(buf)
   return str(o.hexdigest())
 
+hash = hashs
+
 def hashf(path, alg='sha512'):
   'Hash a file using hashlib.'
 
