@@ -36,6 +36,8 @@ class TempDir:
 
   def __init__(self, suffix=None, prefix=None, dir=None, keep=False):
     super().__init__()
+    if prefix is None:
+      prefix = 'lura.'
     self._tempdir_suffix = suffix
     self._tempdir_prefix = prefix
     self._tempdir_root = dir
@@ -54,3 +56,12 @@ class TempDir:
     else:
       shutil.rmtree(self._tempdir_dir)
     self._tempdir_dir = None
+
+class TempFile(TempDir):
+
+  def __init__(self, *args, **kwargs):
+    super().__init__()
+
+  def __enter__(self):
+    temp_dir = super().__enter__()
+    return os.path.join(temp_dir, 'file')
