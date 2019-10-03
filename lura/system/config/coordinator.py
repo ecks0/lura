@@ -1,5 +1,4 @@
 import threading
-from lura import threads
 from lura import logs
 from lura.attrs import ottr
 from lura.time import poll
@@ -24,14 +23,6 @@ class Coordinator:
   def active(self):
     return tuple(_ for _ in self.configs if _.system)
 
-  def wait(self, cond, timeout=None):
-    if cond == 'sync' and not self.synchronize:
-      return
-    with self.conditions[cond]:
-      if not self.conditions[cond].wait(timeout):
-        raise TimeoutError(
-          f'Coordinator did not send "{cond}" within {timeout} seconds')
-
   def awaiting(self, cond):
     if cond == 'sync' and not self.synchronize:
       return False
@@ -52,3 +43,11 @@ class Coordinator:
       self.cancelled = True
       for cond in conds.values():
         cond.notify_all()
+
+  def wait(self, cond, timeout=None):
+    if cond == 'sync' and not self.synchronize:
+      return
+    with self.conditions[cond]:
+      if not self.conditions[cond].wait(timeout):
+        raise TimeoutError(
+          f'Coordinator did not send "{cond}" within {timeout} seconds')
