@@ -18,7 +18,7 @@ class Cancelled(RuntimeError): pass
 
 class BaseConfiguration(utils.Kwargs):
 
-  config_ready_timeout = 10.0
+  config_ready_timeout = 2.0
   config_sync_timeout  = None
   config_done_timeout  = None
   log_level            = log.INFO

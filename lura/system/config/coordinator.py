@@ -1,14 +1,16 @@
 import threading
 from lura import logs
+from lura import utils
 from lura.attrs import ottr
 from lura.time import poll
 
 log = logs.get_logger(__name__)
 
-class Coordinator:
+class Coordinator(utils.Kwargs):
 
-  def __init__(self, configs, synchronize, fail_early):
-    super().__init__()
+  default_poll_interval = 0.05
+
+  def __init__(self, configs, synchronize, fail_early, **kwargs):
     self.conditions = ottr(
       ready = threading.Condition(),
       sync = threading.Condition(),
@@ -18,6 +20,7 @@ class Coordinator:
     self.synchronize = synchronize
     self.fail_early = fail_early
     self.cancelled = None
+    super().__init__(**kwargs)
 
   @property
   def active(self):
@@ -29,7 +32,9 @@ class Coordinator:
     with self.conditions[cond]:
       return len(self.conditions[cond]._waiters) >= len(self.active)
 
-  def poll(self, cond, timeout=-1, retries=-1, pause=0.05):
+  def poll(self, cond, timeout=-1, retries=-1, pause=None):
+    if pause is None:
+      pause = self.default_poll_interval
     test = lambda: self.awaiting(cond)
     return poll(test, timeout=timeout, retries=retries, pause=pause)
 
