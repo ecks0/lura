@@ -12,10 +12,10 @@ from lura import formats
 from lura import logs
 from lura import threads
 from lura.attrs import attr
-from lura.attrs import deepcopy
 from lura.attrs import ottr
 from lura.sudo import SudoHelper
 from lura.sudo import shell_path
+from lura.utils import deepcopy
 from types import GeneratorType
 
 log = logs.get_logger(__name__)
@@ -278,6 +278,27 @@ class Run(threading.local):
         self._sudo_cleanup(ctx)
 
   __call__ = run
+
+  def zero(*args, **kwargs):
+    '''
+    A predicate which returns `True` if `argv` exits with code 0, else `False`.
+
+    Sets `enforce` to `False` if not present in `kwargs`.
+    '''
+
+    kwargs.setdefault('enforce', False)
+    return self.run(*args, **kwargs).code == 0
+
+  def nonzero(*args, **kwargs):
+    '''
+    A predicate which returns `True` if `argv` exits with a non-zero exit
+    code, else `True`.
+
+    Sets `enforce` to `False` if not present in `kwargs`.
+    '''
+
+    kwargs.setdefault('enforce', False)
+    return self.run(*args, **kwargs).code != 0
 
   @contextmanager
   def quash(self):
