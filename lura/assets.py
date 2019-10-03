@@ -3,9 +3,21 @@ import pkg_resources
 
 class Assets:
 
-  @staticmethod
-  def join(*args):
+  @classmethod
+  def join(cls, *args):
     return '/'.join(arg.rstrip('/') for arg in args)
+
+  @classmethod
+  def split(cls, path):
+    return path.strip('/').split('/')
+
+  @classmethod
+  def basename(cls, path):
+    return cls.split(path)[-1]
+
+  @classmethod
+  def dirname(cls, path):
+    return cls.join(cls.split(path)[:-1])
 
   def __init__(self, package, prefix=None):
     super().__init__()
