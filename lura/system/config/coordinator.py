@@ -10,7 +10,8 @@ class Coordinator(utils.Kwargs):
 
   default_poll_interval = 0.05
 
-  def __init__(self, configs, synchronize, fail_early, **kwargs):
+  def __init__(self, configs, synchronize, fail_early):
+    super().__init__()
     self.conditions = ottr(
       ready = threading.Condition(),
       sync = threading.Condition(),
@@ -20,7 +21,6 @@ class Coordinator(utils.Kwargs):
     self.synchronize = synchronize
     self.fail_early = fail_early
     self.cancelled = None
-    super().__init__(**kwargs)
 
   @property
   def active(self):

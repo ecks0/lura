@@ -1,3 +1,4 @@
+from lura import LuraError
 from lura import logs
 from lura import utils
 from lura.system.config import executor
@@ -65,13 +66,11 @@ class Deployment(utils.Kwargs):
       self._reset()
 
   def is_applied(self, config, systems):
-    self.config = config
-    self.systems = systems
     try:
-      res = executor.ThreadExecutor().is_applied(self)
-      ok, err = self._format_results(res)
+      ok, err = self._run(
+        self.executor().is_applied, config, systems, args, kwargs)
       if err:
-        raise RuntimeError('Some hosts failed with exceptions')
+        raise LuraError('Some hosts failed with exceptions')
       return all(ok)
     finally:
       self._reset()
