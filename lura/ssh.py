@@ -1,16 +1,17 @@
-'SSH client with sudo support.'
+'Ssh client with sudo support.'
 
 import fabric
+import os
 import sys
 from invoke import Responder
 from lura import logs
 from subprocess import list2cmdline as shjoin
 
-log = logs.get_logger(__name__)
+logger = logs.get_logger(__name__)
 
 class Client:
 
-  log_level = log.DEBUG
+  log_level = logger.DEBUG
 
   def __init__(
     self, host, port=22, user=None, password=None, key_file=None,
@@ -18,17 +19,20 @@ class Client:
   ):
     # FIXME accept key data from buffer
     super().__init__()
-    self.host = host
-    self.port = port
-    self.user = user
-    self.timeout = timeout
-    self.conn_kwargs = {
+    self._host = host
+    self._port = port
+    self._user = user
+    self._timeout = timeout
+    self._conn_kwargs = {
       'key_filename': key_file,
       'passphrase': passphrase,
       'auth_timeout': auth_timeout,
     }
-    self.sudo_password = sudo_password
-    self.conn = None
+    self._sudo_password = sudo_password
+    self._conn = None
+
+  def __del__(self):
+    self.close()
 
   def __enter__(self):
     self.connect()
@@ -37,53 +41,75 @@ class Client:
   def __exit__(self, *exc_info):
     self.close()
 
-  def _log(self, msg):
-    _log = getattr(log, logs.get_level_name(self.log_level).lower())
-    _log(f'[{self.host}] {msg}')
+  def _connect(self):
+    log = logger[self.log_level]
+    log(f'[{self._host}] Connecting')
+    overrides = {}
+    if self._sudo_password:
+      overrides['sudo'] = {'password': self._sudo_password}
+    config = fabric.Config(overrides=overrides)
+    self._conn = fabric.Connection(
+      host=self._host, user=self._user, port=self._port,
+      connect_timeout=self._timeout, connect_kwargs=self._conn_kwargs,
+      config=config)
+    log(f'[{self._host}] Connected')
 
   def connect(self):
-    self._log('Connecting')
-    overrides = {}
-    if self.sudo_password:
-      overrides['sudo'] = {'password': self.sudo_password}
-    config = fabric.Config(overrides=overrides)
-    self.conn = fabric.Connection(
-      host=self.host, user=self.user, port=self.port,
-      connect_timeout=self.timeout, connect_kwargs=self.conn_kwargs,
-      config=config)
-    self._log('Connected')
+    if self._conn is None:
+      self._connect()
+
+  def is_connected(self):
+    return self._conn is not None
 
   def is_closed(self):
-    return self.conn is None
+    return self._conn is None
+
+  def _close(self):
+    log = logger[self.log_level]
+    log(f'[{self._host}] Closing')
+    try:
+      self._conn.close()
+    finally:
+      self._conn = None
+      log(f'[{self._host}] Closed')
+      self._host = None
 
   def close(self):
-    try:
-      self._log('Closing')
-      self.conn.close()
-    except Exception:
-      log.exception('Unhandled exceptionat close()')
-    self.conn = None
-    self._log('Closed')
-    self.host = None
-
-  disconnect = close
+    if self._conn is not None:
+      self._close()
 
   def put(self, src, dst):
-    self._log(f'put {src} -> {dst}')
-    self.conn.put(src, remote=dst)
+    log = logger[self.log_level]
+    self.connect()
+    msg = os.linesep.join([
+      f'[{self._host}] put:',
+      f'[{self._host}]   src: {src}',
+      f'[{self._host}]   dst: {dst}',
+    ])
+    log(msg)
+    self._conn.put(src, remote=dst)
 
-  def get(self, dst, src):
-    self._log(f'get {dst} -> {src}')
-    self.conn.get(src, local=dst)
+  def get(self, src, dst):
+    log = logger[self.log_level]
+    self.connect()
+    msg = os.linesep.join([
+      f'[{self._host}] get:',
+      f'[{self._host}]   src: {src}',
+      f'[{self._host}]   dst: {dst}',
+    ])
+    log(msg)
+    self._conn.get(src, local=dst)
 
   def run(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True
   ):
+    log = logger[self.log_level]
+    self.connect()
     if not isinstance(argv, str):
       argv = shjoin(argv)
-    self._log(f'run {argv}')
-    return self.conn.run(
+    log(f'[{self._host}] run: {argv}')
+    return self._conn.run(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
       encoding=encoding, in_stream=stdin, out_stream=stdout,
       err_stream=stderr, warn=not enforce, hide=True)
@@ -91,16 +117,29 @@ class Client:
   def sudo(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
-    user=None
+    user=None, login=False
   ):
+    log = logger[self.log_level]
+    self.connect()
     if not isinstance(argv, str):
       argv = shjoin(argv)
-    self._log(f'sudo {argv}')
-    return self.conn.sudo(
+    user_argv = argv
+    argv = ['sudo']
+    if login:
+      argv.append('-i')
+    if user:
+      argv.extend(('-u', user))
+    argv.append(user_argv)
+    argv = ' '.join(argv)
+    log(f'[{self._host}] sudo: {argv}')
+    return self._conn.sudo(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
       encoding=encoding, in_stream=stdin, out_stream=stdout,
-      err_stream=stderr, warn=not enforce, hide=True,
-      user=user)
+      err_stream=stderr, warn=not enforce, hide=True)
 
   def forward(self, lport, rport, lhost=None):
-    return self.conn.forward_local(lport, rport, lhost)
+    self.connect()
+    return self._conn.forward_local(lport, rport, lhost)
+
+  connected = property(is_connected)
+  closed = property(is_closed)
