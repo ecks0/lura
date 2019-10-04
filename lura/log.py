@@ -78,7 +78,7 @@ class Logging:
   # log format presets
   formats = attr(
     bare    = '%(message)s',
-    classic = '%(asctime)s %(levelname)-8s %(short_name)s %(message)s',
+    classic = '%(asctime)s %(short_name)20s %(short_levelname)s %(message)s',
     hax     = '%(run_time)-8.3f %(short_name)19s %(short_levelname)s %(message)s',
     runtime = '%(run_time)-12.3f %(message)s',
     verbose = '%(asctime)s %(run_time)12.3f %(name)s %(short_levelname)s %(message)s',
