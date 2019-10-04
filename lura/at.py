@@ -117,7 +117,7 @@ class Scheduler:
       log('Asked to apply schedule when already applied')
       return
     for job, task in self._schedule:
-      job.do(lambda: task.spawn(self))
+      job.do(task.spawn, self)
       log('Scheduled ' + self._format_task(job, task))
     self._applied = True
 
