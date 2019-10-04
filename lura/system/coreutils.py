@@ -305,10 +305,10 @@ class System:
       raise ValueError('Unknown operating system')
 
   def apply(self, config, *args, **kwargs):
-    config.apply(self, *args, **kwargs)
+    return config.apply(self, *args, **kwargs)
 
   def delete(self, config, *args, **kwargs):
-    config.delete(self, *args, **kwargs)
+    return config.delete(self, *args, **kwargs)
 
   def is_applied(self, config, *args, **kwargs):
     return config.is_applied(self, *args, **kwargs)
