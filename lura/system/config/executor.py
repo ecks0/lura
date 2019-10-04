@@ -7,7 +7,7 @@ from lura import logs
 from lura import utils
 from lura.iter import always
 from lura.time import poll
-from lura.system.config.coordinator import Coordinator
+from lura.system.config import coordinator
 from multiprocessing import pool
 from time import sleep
 
@@ -28,6 +28,7 @@ class ThreadPool(threads.Thread):
 
 class ThreadExecutor(utils.Kwargs):
 
+  coordinator_type       = coordinator.Coordinator
   threads_start_timeout  = 2.0
   threads_start_interval = 0.01
   threads_ready_timeout  = 2.0
@@ -38,8 +39,7 @@ class ThreadExecutor(utils.Kwargs):
     super().__init__(**kwargs)
 
   def _wait_for_start(self, configs):
-    def test():
-      return all(bool(_.system) for _ in configs)
+    test = lambda: all(bool(_.system) for _ in configs)
     timeout = self.threads_start_timeout
     pause = self.threads_start_interval
     if not poll(test, timeout=timeout, pause=pause):
@@ -51,9 +51,21 @@ class ThreadExecutor(utils.Kwargs):
     if not coord.poll('ready', timeout=timeout, pause=pause):
       raise RuntimeError(f'Threads did not ready within {timeout} seconds')
 
-  def _run(self, fn, deploy,):
+  def _run_loop(self, configs, coord):
+    self._wait_for_start(configs)
+    self._wait_for_ready(coord)
+    coord.notify('ready')
+    while not (coord.poll('done', retries=0) or coord.cancelled):
+      if coord.poll('sync', retries=0):
+        coord.notify('sync')
+      sleep(self.run_loop_interval)
+    if not coord.cancelled:
+      coord.notify('done')
+
+  def _run(self, fn, deploy):
     configs = [deepcopy(deploy.config) for _ in range(0, len(deploy.systems))]
-    coord = Coordinator(configs, deploy.synchronize, deploy.fail_early)
+    coord = self.coordinator_type(
+      configs, deploy.synchronize, deploy.fail_early)
     items = zip(
       configs,
       deploy.systems,
@@ -63,15 +75,7 @@ class ThreadExecutor(utils.Kwargs):
     )
     pool = ThreadPool.spawn(fn, items, deploy.workers)
     try:
-      self._wait_for_start(configs)
-      self._wait_for_ready(coord)
-      coord.notify('ready')
-      while not (coord.poll('done', retries=0) or coord.cancelled):
-        if coord.poll('sync', retries=0):
-          coord.notify('sync')
-        sleep(self.run_loop_interval)
-      if not coord.cancelled:
-        coord.notify('done')
+      self._run_loop(configs, coord)
       pool.join()
       return pool.result
     except BaseException:
@@ -107,5 +111,5 @@ class ThreadExecutor(utils.Kwargs):
     except Exception:
       return sys.exc_info()
 
-  def is_applied(self, deployment):
-    return self._run(self._is_applied, deploymnet)
+  def is_applied(self, deploy):
+    return self._run(self._is_applied, deploy)

@@ -91,7 +91,7 @@ class Debian(PackageManager):
     if len(packages) == 1 and not isinstance(packages[0], str):
       packages = packages[0]
     env = {'DEBIAN_FRONTEND': 'noninteractive'}
-    argv = ['apt-get', 'remove', '-y']
+    argv = ['apt-get', 'remove', '-y', '--purge']
     if purge:
       argv.append('--purge')
     argv.extend(packages)

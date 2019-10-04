@@ -1,3 +1,4 @@
+import types
 from collections import MutableMapping
 from collections import MutableSequence
 from lura import LuraError
@@ -43,3 +44,15 @@ class Kwargs:
         raise KwargError(f'Non-type callable attributes are forbidden: {arg}')
     for arg in kwargs:
       setattr(self, arg, kwargs[arg])
+
+def isexc(o):
+  '''
+  `True` if `o` is a tuple as returned by `sys.exc_info()`, else
+  `False`.
+  '''
+
+  return isinstance(o, tuple) and len(o) == 3 and (
+    isinstance(o[0], type) and
+    isinstance(o[1], o[0]) and
+    isinstance(o[2], types.TracebackType)
+  )

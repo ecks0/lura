@@ -26,8 +26,14 @@ class Deployment(utils.Kwargs):
     self.kwargs = None
 
   def _format_result(self, res):
-    ok = [self.systems[_] for _ in range(0, len(res)) if not res[_]]
-    err = [(self.systems[_], res[_]) for _ in range(0, len(res)) if res[_]]
+    ok = [
+      (self.systems[_], res[_])
+      for _ in range(0, len(res)) if not utils.isexc(res[_])
+    ]
+    err = [
+      (self.systems[_], res[_])
+      for _ in range(0, len(res)) if utils.isexc(res[_])
+    ]
     return ok, err
 
   def _run(self, method, config, systems, args, kwargs):
@@ -69,8 +75,6 @@ class Deployment(utils.Kwargs):
     try:
       ok, err = self._run(
         self.executor().is_applied, config, systems, args, kwargs)
-      if err:
-        raise LuraError('Some hosts failed with exceptions')
-      return all(ok)
+      return ok, err
     finally:
       self._reset()

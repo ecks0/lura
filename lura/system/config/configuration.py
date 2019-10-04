@@ -1,5 +1,7 @@
 import os
+import traceback
 from abc import abstractmethod
+from contextlib import contextmanager
 from logging import Logger
 from lura import fs
 from lura import logs
@@ -12,16 +14,61 @@ from lura.time import Timer
 from multiprocessing import pool
 from time import sleep
 
-log = logs.get_logger(__name__)
+log = logger = logs.get_logger(__name__)
 
 class Cancelled(RuntimeError): pass
 
+class Task:
+
+  def __init__(
+    self, config, msg, log=None, sync=True, silent=False, begin=False
+  ):
+    super().__init__()
+    self.config = config
+    self.msg = msg
+    self.log = log or logger
+    self.sync = sync
+    self.silent = silent
+    self.begin = begin
+    self.changes = 0
+
+  def __enter__(self):
+    if self.sync:
+      self.config.sync()
+    if self.begin and not self.silent:
+      self.config.log(self.log, f'< begin> {self.msg}')
+    return self
+
+  def __exit__(self, *exc_info):
+    assert(self.changes >= 0)
+    self.config.changes += self.changes
+    if self.silent:
+      return
+    if exc_info != (None, None, None):
+      self.config.log(self.log, f'( error) {self.msg}')
+    elif self.changes == 0:
+      self.config.log(self.log, f'(    ok) {self.msg}')
+    elif self.changes > 0:
+      self.config.log(self.log, f'(change) {self.msg}')
+
+  def change(self, count=1):
+    assert(count > 0)
+    self.changes += count
+
+  def is_changed(self):
+    assert(self.changes >= 0)
+    return self.changes > 0
+
+  changed = property(is_changed)
+
 class BaseConfiguration(utils.Kwargs):
 
+  config_task_type     = Task
   config_ready_timeout = 2.0
   config_sync_timeout  = None
   config_done_timeout  = None
-  log_level            = log.INFO
+
+  log_level = log.INFO
 
   def __init__(self, **kwargs):
     self._reset()
@@ -33,12 +80,16 @@ class BaseConfiguration(utils.Kwargs):
     self.packages = None
     self.args = None
     self.kwargs = None
+    self.changes = 0
+
+  def task(self, *args, **kwargs):
+    return self.config_task_type(self, *args, **kwargs)
 
   def log(self, log, msg, *args, **kwargs):
     if os.linesep in msg:
-      msg = strutils.prefix(msg, f'[{self.system.host}] ')
+      msg = strutils.prefix(msg, f'[{self.system.name}] ')
     else:
-      msg = f'[{self.system.host}] {msg}'
+      msg = f'[{self.system.name}] {msg}'
     if isinstance(log, Logger):
       log[self.log_level](msg, *args, **kwargs)
     elif callable(log):
@@ -98,7 +149,7 @@ class BaseConfiguration(utils.Kwargs):
 
   @abstractmethod
   def on_apply(self):
-    pass
+    return self.changes
 
   def on_apply_start(self):
     pass
@@ -127,7 +178,7 @@ class BaseConfiguration(utils.Kwargs):
 
   @abstractmethod
   def on_delete(self):
-    pass
+    return self.changes
 
   def on_delete_start(self):
     pass
@@ -142,8 +193,7 @@ class BaseConfiguration(utils.Kwargs):
     pass
 
   def delete(self, system, *args, coordinator=None, **kwargs):
-    self.log(log, f'Deleting configuration {self.name}')
-    self._run(
+    return self._run(
       system,
       coordinator,
       self.on_delete,
@@ -154,7 +204,6 @@ class BaseConfiguration(utils.Kwargs):
       args,
       kwargs,
     )
-    self.log(log, f'Deleted configuration {self.name}')
 
   def on_is_applied_start(self):
     pass
@@ -185,22 +234,25 @@ class BaseConfiguration(utils.Kwargs):
       kwargs,
     )
 
+  applied = property(is_applied)
+
 class Configuration(BaseConfiguration):
 
-  name            = '(name not set)'
-  assets_object   = None
-  os_package_urls = []
-  os_packages     = []
-  python_packages = []
-  directories     = []
-  files           = []
-  assets          = []
-  template_files  = []
-  template_assets = []
-  symlinks        = []
-  template_env    = {}
+  name                 = '(name not set)'
+  assets_object        = None
+  os_package_urls      = []
+  os_packages          = []
+  python_packages      = []
+  directories          = []
+  files                = []
+  assets               = []
+  template_files       = []
+  template_assets      = []
+  symlinks             = []
+  template_env         = {}
   keep_os_packages     = True
   keep_python_packages = True
+  keep_nonempty_dirs   = True
 
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
@@ -287,198 +339,183 @@ class Configuration(BaseConfiguration):
     files += [symlink for _, symlink in self.get_symlinks()]
     return files
 
-  def refresh_os_package_list(self):
-    self.sync()
-    if self.get_os_packages() or self.get_os_package_urls():
-      self.log(log, 'Refreshing os package list')
-      self.packages.os.refresh()
+  def get_all_os_packages(self):
+    os_packages = [pkg for (pkg, _) in self.get_os_package_urls()]
+    os_packages.extend(self.get_os_packages())
+    return os_packages
 
   #####
   ## apply steps
 
-  def apply_os_package_url(self, pkg, url):
+  def apply_os_package_list_update(self):
+    msg = 'Apply os package list update'
+    os_packages = self.get_all_os_packages()
+    silent = not bool(os_packages)
+    with self.task(msg, log=log, silent=silent) as task:
+      if not os_packages:
+        return
+      if self.packages.os.installed(os_packages):
+        return
+      self.packages.os.refresh()
+      task.change()
+
+  def apply_os_package_url(self, task, pkg, url):
     if pkg in self.packages.os:
-      self.log(log.debug, f'    {pkg} (present)')
-    else:
-      self.log(log.debug, f'    {pkg}')
-      self.packages.os.install_url(url)
+      return
+    self.packages.os.install_url(url)
+    task.change()
 
   def apply_os_package_urls(self):
-    self.sync()
     os_package_urls = self.get_os_package_urls()
-    if not os_package_urls:
-      return
-    msg = f'Applying {len(os_package_urls)} os package urls'
-    if self.packages.os.installed(*[pkg for pkg, _ in os_package_urls]):
-      msg += ' (present)'
-    self.log(log, msg)
-    for pkg, url in os_package_urls:
-      self.apply_os_package_url(pkg, url)
+    msg = f'Apply {len(os_package_urls)} os package urls'
+    silent = not bool(os_package_urls)
+    with self.task(msg, log=log, silent=silent) as task:
+      for pkg, url in os_package_urls:
+        self.apply_os_packages(task, pkg, url)
 
-  def apply_os_package(self, pkg):
+  def apply_os_package(self, task, pkg):
     if pkg in self.packages.os:
-      self.log(log.debug, f'    {pkg} (present)')
-    else:
-      self.log(log.debug, f'    {pkg}')
-      self.packages.os.install(pkg)
+      return
+    self.packages.os.install(pkg)
+    task.change()
 
   def apply_os_packages(self):
-    self.sync()
     os_packages = self.get_os_packages()
-    if not os_packages:
-      return
-    msg = f'Applying {len(os_packages)} os packages'
-    if self.packages.os.installed(*os_packages):
-      msg += ' (present)'
-    self.log(log, msg)
-    for pkg in os_packages:
-      self.apply_os_package(pkg)
+    msg = f'Apply {len(os_packages)} os packages'
+    silent = not bool(os_packages)
+    with self.task(msg, log=log, silent=silent) as task:
+      for pkg in os_packages:
+        self.apply_os_package(task, pkg)
 
-  def apply_python_package(self, pkg):
+  def apply_python_package(self, task, pkg):
     if pkg in self.packages.pip:
-      self.log(log.debug, f'    {pkg} (present)')
-    else:
-      self.log(log.debug, f'    {pkg}')
-      self.packages.pip.install(pkg)
+      return
+    self.packages.pip.install(pkg)
+    task.change()
 
   def apply_python_packages(self):
-    self.sync()
     python_packages = self.get_python_packages()
-    if not python_packages:
-      return
-    msg = f'Applying {len(python_packages)} python packages'
-    if self.packages.pip.installed(*python_packages):
-      msg += ' (present)'
-    self.log(log, msg)
-    for pkg in python_packages:
-      self.apply_python_package(pkg)
+    msg = f'Apply {len(python_packages)} python packages'
+    silent = not bool(python_packages)
+    with self.task(msg, log=log, silent=silent) as task:
+      for pkg in python_packages:
+        self.appy_python_package(task, pkg)
 
-  def apply_directory(self, dir):
-    if self.system.isdir(dir):
-      self.log(log.debug, f'    {dir} (present)')
-    else:
-      self.log(log.debug, f'    {dir}')
-      self.system.mkdirp(dir)
+  def apply_directory(self, task, dir):
+    sys = self.system
+    if sys.isdir(dir):
+      return
+    sys.mkdirp(dir)
+    task.change()
 
   def apply_directories(self):
-    self.sync()
-    sys = self.system
-    dirs = self.get_directories()
-    if not dirs:
-      return
-    msg = f'Applying {len(dirs)} directories'
-    if all(sys.isdir(_ for _ in dirs)):
-      self.log(log, f'{msg} (present)')
-    else:
-      self.log(log, msg)
-    for dir in dirs:
-      self.apply_directory(dir)
+    directories = self.get_directories()
+    msg = f'Apply {len(directories)} directories'
+    silent = not bool(directories)
+    with self.task(msg, log=log, silent=silent) as task:
+      for dir in directories:
+        self.apply_directory(task, dir)
 
-  def apply_file(self, src, dst):
+  def apply_file(self, task, src, dst):
     sys = self.system
-    if sys.exists(dst) or sys.islink(dst):
-      self.log(log.debug, f'    {dst} (overwrite)')
-    else:
-      self.log(log.debug, f'    {dst}')
+    if sys.isfile(dst):
+      return
     sys.put(src, dst)
+    task.change()
 
   def apply_files(self):
-    self.sync()
-    sys = self.system
     files = self.get_files()
-    if not files:
-      return
-    if all(sys.exists(_) for _ in files):
-      self.log(log, f'Applying {len(files)} files (present)')
-    else:
-      self.log(log, f'Applying {len(files)} files')
-    for src, dst in files:
-      self.apply_file(src, dst)
+    msg = f'Apply {len(files)} files'
+    silent = not bool(files)
+    with self.task(msg, log=log, silent=silent) as task:
+      for src, dst in files:
+        self.appy_file(task, src, dst)
 
-  def apply_asset(self, src, dst):
+  def apply_asset(self, task, src, dst):
     sys = self.system
+    if sys.isfile(dst):
+      return
     assets = self.get_assets_object()
-    if sys.exists(dst) or sys.islink(dst):
-      self.log(log.debug, f'    {dst} (overwrite)')
-    else:
-      self.log(log.debug, f'    {dst}')
-    with self._tempdir_local('apply_asset') as temp_dir:
+    with self._tempdir_local(prefix='apply_asset') as temp_dir:
       tmp = os.path.join(temp_dir, assets.basename(dst))
       assets.copy(src, tmp)
-      self.system.put(tmp, dst)
+      sys.put(tmp, dst)
+    task.change()
 
   def apply_assets(self):
-    self.sync()
     assets = self.get_assets()
-    if not assets:
-      return
-    self.log(log, f'Applying {len(assets)} assets')
-    for src, dst in assets:
-      self.apply_asset(src, dst)
+    msg = f'Apply {len(assets)} assets'
+    silent = not bool(assets)
+    with self.task(msg, log=log, silent=silent) as task:
+      for src, dst in assets:
+        self.apply_asset(task, src, dst)
 
-  def apply_template_file(self, env, src, dst):
+  def apply_template_file(self, task, src, dst):
     sys = self.system
-    if sys.exists(dst) or sys.islink(dst):
-      self.log(log.debug, f'    {dst} (overwrite)')
-    else:
-      self.log(log.debug, f'    {dst}')
-    with self._tempdir_local('apply_template_file') as temp_dir:
+    if sys.isfile(dst):
+      return
+    env = self.get_template_env()
+    with self._tempdir_local(prefix='apply_template_file') as temp_dir:
       tmp = os.path.join(temp_dir, os.path.basename(dst))
       jinja2.expandff(env, src, tmp)
       sys.put(tmp, dst)
+    task.change()
 
   def apply_template_files(self):
-    self.sync()
     template_files = self.get_template_files()
-    if not template_files:
-      return
-    self.log(log, f'Applying {len(template_files)} template files')
-    template_env = self.get_template_env()
-    for src, dst in template_files:
-      self.apply_template_file(template_env, src, dst)
-    self.sync()
+    msg = f'Apply {len(template_files)} template files'
+    silent = not bool(template_files)
+    with self.task(msg, log=log, silent=silent) as task:
+      for src, dst in template_files:
+        self.apply_template_file(task, src, dst)
 
-  def apply_template_asset(self, env, src, dst):
+  def apply_template_asset(self, task, src, dst):
     sys = self.system
+    if sys.isfile(dst):
+      return
     assets = self.get_assets_object()
-    if sys.exists(dst) or sys.islink(dst):
-      self.log(log.debug, f'    {dst} (overwrite)')
-    else:
-      self.log(log.debug, f'    {dst}')
-    with self._tempdir_local('apply_template_asset') as temp_dir:
+    env = self.get_template_env()
+    with self._tempdir_local(prefix='apply_template_asset') as temp_dir:
       tmp = os.path.join(temp_dir, os.path.basename(dst))
       tmpl = assets.loads(src)
       jinja2.expandsf(env, tmpl, tmp)
       sys.put(tmp, dst)
+    task.change()
 
   def apply_template_assets(self):
-    self.sync()
     template_assets = self.get_template_assets()
-    if not template_assets:
-      return
-    self.log(log, f'Applying {len(template_assets)} template assets')
-    template_env = self.get_template_env()
-    for src, dst in template_assets:
-      self.apply_template_asset(template_env, src, dst)
-    self.sync()
+    msg = f'Apply {len(template_assets)} template assets'
+    silent = not bool(template_assets)
+    with self.task(msg, log=log, silent=silent) as task:
+      for src, dst in template_assets:
+        self.apply_template_asset(task, src, dst)
 
-  def apply_symlink(self, src, dst):
+  def apply_symlink(self, task, src, dst):
     sys = self.system
-    if sys.islink(dst) or sys.exists(dst):
-      self.log(log.debug, log, f'    {dst} (overwrite)')
-      sys.rmf(dst)
-    else:
-      self.log(log.debug, log, f'    {dst}')
+    if self.islink(dst):
+      return
     sys.lns(src, dst)
+    task.change()
 
   def apply_symlinks(self):
-    self.sync()
     symlinks = self.get_symlinks()
-    if not symlinks:
-      return
-    self.log(log, f'Applying {len(symlinks)} symlinks')
-    for src, dst in symlinks:
-      self.apply_symlink(src, dst)
+    msg = f'Apply {len(symlinks)} symlinks'
+    silent = not bool(symlinks)
+    with self.task(msg, log=log, silent=silent) as task:
+      for src, dst in symlinks:
+        self.apply_symlink(task, src, dst)
+
+  def on_apply(self):
+    self.apply_os_package_list_update()
+    self.apply_os_package_urls()
+    self.apply_os_packages()
+    self.apply_directories()
+    self.apply_files()
+    self.apply_assets()
+    self.apply_template_files()
+    self.apply_template_assets()
+    self.apply_symlinks()
+    return super().on_apply()
 
   def on_apply_start(self):
     self.sync()
@@ -489,93 +526,84 @@ class Configuration(BaseConfiguration):
     self.log(log, f'Applied configuration {self.name}')
 
   def on_apply_error(self):
-    msg = f'[{self.system.host}] Unhandled exception while applying'
-    log.exception(msg, exc_info=True)
+    self.log(log, traceback.format_exc().rstrip())
 
   def on_apply_cancel(self):
     self.log(log, 'Apply cancelled')
 
-  def on_apply(self):
-    self.refresh_os_package_list()
-    self.apply_os_package_urls()
-    self.apply_os_packages()
-    self.apply_directories()
-    self.apply_files()
-    self.apply_assets()
-    self.apply_template_files()
-    self.apply_template_assets()
-    self.apply_symlinks()
-
   #####
   ## delete steps
 
-  def delete_os_package(self, pkg):
+  def delete_os_package(self, task, pkg):
     if pkg not in self.packages.os:
-      self.log(log.debug, f'    {pkg} (missing)')
-    else:
-      self.log(log.debug, f'    {pkg}')
-      self.packages.os.remove(pkg)
+      return
+    self.packages.os.remove(pkg)
+    task.change()
 
   def delete_os_packages(self):
-    self.sync()
-    if self.keep_os_packages:
-      self.log(log, 'Keeping os packages')
-      return
-    self.sync()
-    os_packages = reversed(self.get_os_packagess())
-    self.log(log, f'Removing {len(os_packages)} os packages')
-    for pkg in os_packages:
-      self.delete_os_package(pkg)
+    os_packages = list(reversed(self.get_all_os_packages()))
+    msg = f'Delete {len(os_packages)} os packages'
+    silent = not bool(os_packages)
+    with self.task(msg, log=log, silent=None) as task:
+      if self.keep_os_packages:
+        return
+      for pkg in os_packages:
+        self.delete_os_package(task, pkg)
 
-  def delete_python_package(self, pkg):
+  def delete_python_package(self, task, pkg):
     if pkg not in self.packages.pip:
-      self.log(log.debug, f'    {pkg} (missing)')
-    else:
-      self.log(log.debug, f'    {pkg}')
-      self.packages.pip.remove(pkg)
+      return
+    self.packages.pip.remove(pkg)
+    task.change()
 
   def delete_python_packages(self):
-    self.sync()
-    if self.keep_python_packages:
-      self.log(log, 'Keeping python packages')
-      return
-    python_packages = reversed(self.get_python_packagess())
-    self.log(log, f'Removing {len(python_packages)} python packages')
-    for pkg in python_packages:
-      self.delete_python_package(pkg)
+    python_packages = self.get_python_packages()
+    msg = f'Delete {len(python_packages)} python packages'
+    silent = not bool(python_packages)
+    with self.task(msg, log=log, silent=silent) as task:
+      if self.keep_python_packages:
+        return
+      for pkg in python_packages:
+        self.delete_python_package(task, pkg)
 
-  def delete_file(self, path):
+  def delete_file(self, task, path):
     sys = self.system
-    if sys.exists(path) or sys.islink(path):
-      self.log(log.debug, f'    {path}')
-      sys.rmf(path)
-    else:
-      self.log(log.debug, f'    {path} (missing)')
+    if not sys.isfile(path):
+      return
+    sys.rmf(path)
+    task.change()
 
   def delete_files(self):
-    self.sync()
-    files = list(reversed(self.get_all_files()))
-    self.log(log, f'Removing {len(files)} applied files')
-    for file in files:
-      self.delete_file(file)
+    files = self.get_all_files()
+    msg = f'Delete {len(files)} files'
+    silent = not bool(files)
+    with self.task(msg, log=log, silent=silent) as task:
+      for file in files:
+        self.delete_file(task, path)
 
-  def delete_directory(self, path):
+  def delete_directory(self, task, dir):
     sys = self.system
-    if sys.isdir(path):
-      if len(sys.ls(path)) > 0:
-        self.log(f'    {path} (not empty, keeping)')
-      else:
-        self.log(log.debug, f'    {path}')
-        os.rmdir(path)
-    else:
-      self.log(log.debug, f'    {path} (missing)')
+    if not sys.isdir(dir):
+      return
+    if self.keep_nonempty_dirs and len(sys.ls(dir)) > 0:
+      return
+    sys.rmrf(dir)
+    task.change()
 
   def delete_directories(self):
-    self.sync()
-    dirs = self.get_directories()
-    self.log(log, f'Removing {len(dirs)} applied directories')
-    for path in dirs:
-      self.delete_directory(path)
+    directories = self.get_directories()
+    msg = f'Delete {len(directories)} directories'
+    silent = not bool(directories)
+    with self.task(msg, log=log, silent=silent) as task:
+      for dir in directories:
+        self.delete_directory(task, dir)
+
+  def on_delete(self):
+    self.delete_python_packages()
+    self.delete_os_packages()
+    self.delete_files()
+    self.delete_directories()
+    return super().on_delete()
 
   def on_delete_start(self):
     self.sync()
@@ -586,20 +614,13 @@ class Configuration(BaseConfiguration):
     self.log(log, f'Deleted configuration {self.name}')
 
   def on_delete_error(self):
-    msg = f'[{self.system.host}] Unhandled exception while deleting'
-    log.exception(msg, exc_info=True)
+    self.log(log, traceback.format_exc().rstrip())
 
   def on_delete_cancel(self):
     self.log(log, 'Delete cancelled')
 
-  def on_delete(self):
-    self.delete_python_packages()
-    self.delete_os_packages()
-    self.delete_files()
-    self.delete_directories()
-
   #####
-  ## predicate
+  ## predicate steps
 
   def on_is_applied(self):
     return (
@@ -607,3 +628,9 @@ class Configuration(BaseConfiguration):
       all(_ in self.packages.pip for _ in self.get_python_packages()) and
       all(system.exists(_) or system.islink(_) for _ in self.get_all_files())
     )
+
+  def on_is_applied_error(self):
+    self.log(log, traceback.format_exc().rstrip())
+
+  def on_is_applied_cancel(self):
+    self.log(log, 'Apply check canceled')
