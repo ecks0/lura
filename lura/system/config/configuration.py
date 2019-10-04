@@ -36,7 +36,7 @@ class Task:
     if self.sync:
       self.config.sync()
     if self.begin and not self.silent:
-      self.config.log(self.log, f'< begin> {self.msg}')
+      self.config.log(self.log, f'( begin) {self.msg}')
     return self
 
   def __exit__(self, *exc_info):
