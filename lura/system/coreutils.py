@@ -281,7 +281,14 @@ class System:
 
   @property
   def hostname(self):
-    return self.run('cat /etc/hostname').stdout.rstrip()
+    if self.which('hostname'):
+      return self.run('hostname').stdout.rstrip()
+    hostname = self.run('echo $HOSTNAME').stdout.rstrip()
+    if len(hostname) > 0:
+      return hostname
+    if self.isfile('/etc/hostname'):
+      return self.run('cat /etc/hostname').stdout.rstrip()
+    raise ValueError('Unable to determine system hostname')
 
   @property
   def shell(self):
@@ -293,18 +300,18 @@ class System:
     if self.which('apt-get', 'apt'):
       return attr(family='Debian')
     elif self.which('yum'):
-      return attr(family='RedHat'),
+      return attr(family='RedHat')
     else:
       raise ValueError('Unknown operating system')
 
-  def apply(self, config, force=False):
-    config.apply(self, force=force)
+  def apply(self, config, *args, **kwargs):
+    config.apply(self, *args, **kwargs)
 
-  def delete(self, config, force=False, purge=False):
-    config.delete(self, config, force=force, purge=purge)
+  def delete(self, config, *args, **kwargs):
+    config.delete(self, *args, **kwargs)
 
-  def is_applied(self, config):
-    return config.is_applied(self)
+  def is_applied(self, config, *args, **kwargs):
+    return config.is_applied(self, *args, **kwargs)
 
 class Local(System):
 
