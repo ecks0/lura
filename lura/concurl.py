@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from lura import logs
 from lura.formats import yaml
 from lura.attrs import attr, ottr
-from lura.threads import pool
+from multiprocessing import pool
 
 log = logs.get_logger(__name__)
 
@@ -262,7 +262,8 @@ class ConCurl:
         '.=200 !=Not 200 c/r/t=Connect/Read/Other timeout x=Exception ' + \
         '?=Unknown error')
     thread_count = min(self.thread_count, self.request_count)
-    results = pool.map(thread_count, self.test, self.build_requests())
+    with pool.ThreadPool(thread_count) as p:
+      results = p.map(self.test, self.build_requests())
     end = time.time()
     if self.print_dots:
       print(flush=True)
