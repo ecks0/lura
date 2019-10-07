@@ -33,14 +33,14 @@ listen.log_level = logger.INFO
 def _patch_close(conn, name, log):
   conn_close = conn.close
   def close(*args, **kwargs):
-    log(f'[{name}@{conn.host}:{conn.port}] Disconnected')
+    log(f'[{conn.host}:{conn.port}] Disconnected from {name}')
     conn_close(*args, **kwargs)
     conn.close = conn_close
   conn.close = close
 
 def connect(host, port, key_path, cert_path, sync_timeout):
   log = logger[connect.log_level]
-  log(f'[{host}:{port}] Connecting to service')
+  log(f'[{host}:{port}] Connecting')
   protocol_config = dict(
     allow_all_attrs = True,
     allow_delattr = True,
@@ -56,7 +56,7 @@ def connect(host, port, key_path, cert_path, sync_timeout):
   conn.host = host
   conn.port = port
   conn.service = conn.root
-  log(f'[{name}@{conn.host}:{conn.port}] Connected')
+  log(f'[{conn.host}:{conn.port}] Connected to {name}')
   return conn
 
 connect.log_level = logger.INFO
