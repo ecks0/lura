@@ -112,7 +112,7 @@ class Group(utils.Kwargs):
     finally:
       self._reset()
 
-  def is_applied(self, config, systems, *args, **kwargs):
+  def is_applied(self, config, *args, **kwargs):
     try:
       ok, err = self._run(self.executor().is_applied, config, args, kwargs)
       return ok, err

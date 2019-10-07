@@ -68,7 +68,6 @@ class Synchronize:
           return wrapped(*args, **kwargs)
       return wrapper_class
     else:
-      # i'm not sure when this happens, but i'd like to find out
       assert(False)
 
   def __call__(self, *args, **kwargs):

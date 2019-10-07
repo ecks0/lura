@@ -87,6 +87,7 @@ class BaseConfiguration(utils.Kwargs):
   config_ready_timeout = 2.0
   config_sync_timeout  = None
   config_done_timeout  = None
+  config_packman_type  = packman.PackageManagers
 
   log_level = log.INFO
 
@@ -179,7 +180,7 @@ class BaseConfiguration(utils.Kwargs):
       self.coordinator = coordinator
       self.args = args
       self.kwargs = attr(kwargs)
-      self.packages = packman.PackageManagers(system)
+      self.packages = self.config_packman_type(system)
     try:
       self._ready()
       include_res = self._run_includes(method)
@@ -582,6 +583,19 @@ class Configuration(BaseConfiguration):
     self.apply_symlinks()
     return super().on_apply()
 
+  def on_apply_start(self):
+    super().on_apply_start()
+
+  def on_apply_finish(self):
+    super().on_apply_finish()
+
+  def on_apply_error(self):
+    super().on_apply_error()
+
+  def on_apply_cancel(self):
+    super().on_apply_cancel()
+
+
   #####
   ## delete steps
 
@@ -656,6 +670,18 @@ class Configuration(BaseConfiguration):
     self.delete_directories()
     return super().on_delete()
 
+  def on_delete_start(self):
+    super().on_delete_start()
+
+  def on_delete_finish(self):
+    super().on_delete_finish()
+
+  def on_delete_error(self):
+    super().on_delete_error()
+
+  def on_delete_cancel(self):
+    super().on_delete_cancel()
+
   #####
   ## predicate steps
 
@@ -666,8 +692,14 @@ class Configuration(BaseConfiguration):
       all(system.exists(_) or system.islink(_) for _ in self.get_all_files())
     )
 
+  def on_is_applied_start(self):
+    super().on_is_applied_start()
+
+  def on_is_applied_finish(self):
+    super().on_is_applied_finish()
+
   def on_is_applied_error(self):
-    self.log(log, traceback.format_exc().rstrip())
+    super().on_is_applied_error()
 
   def on_is_applied_cancel(self):
-    self.log(log, 'Apply check canceled')
+    super().on_is_applied_cancel()

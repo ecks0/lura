@@ -227,7 +227,7 @@ class MinikubeDebian(Minikube):
     super().__init__(**kwargs)
 
   def get_os_packages(self):
-    return [
+    return super().get_os_packages() + [
       'docker.io',
       'socat',
     ]
