@@ -62,3 +62,7 @@ class Assets:
 
   def print(self, path, *args, **kwargs):
     print(self.loads(path), *args, **kwargs)
+
+  def bind(self, path):
+    prefix = self.join(self.prefix, path)
+    return type(self)(package=self.package, prefix=prefix)
