@@ -1,7 +1,6 @@
 import types
 from collections import MutableMapping
 from collections import MutableSequence
-from lura import LuraError
 from lura.attrs import attr
 
 def deepcopy(obj, map_cls=attr, seq_cls=None):
@@ -25,7 +24,7 @@ def deepcopy(obj, map_cls=attr, seq_cls=None):
   else:
     raise ValueError(f'obj is not a MutableMapping or MutableSequence: {obj}')
 
-class KwargError(LuraError): pass
+class KwargError(RuntimeError): pass
 
 class Kwargs:
 

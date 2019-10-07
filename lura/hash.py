@@ -1,5 +1,4 @@
 import hashlib
-from lura import LuraError
 
 def hashs(buf, alg='sha512'):
   'Hash a buffer using hashlib.'
@@ -32,7 +31,7 @@ def hashf(path, alg='sha512'):
 
 hashf.buflen = 256 * 1024
 
-class HashError(LuraError):
+class HashError(ValueError):
 
   def __init__(self, path, alg, expected, received):
     msg = f'{path}: expected {alg} {expected}, got {received}'

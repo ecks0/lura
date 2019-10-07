@@ -3,7 +3,6 @@ import shlex
 import shutil
 import subprocess as subp
 import sys
-from lura import LuraError
 from lura.plates import jinja2
 from lura.time import Timer
 from tempfile import mkdtemp
@@ -19,7 +18,7 @@ def shell_path():
     proc.wait()
     return proc.stdout.read().rstrip()
 
-class SudoTimeout(LuraError):
+class SudoTimeout(TimeoutError):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, *kwargs)
 

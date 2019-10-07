@@ -7,7 +7,6 @@ import threading
 from collections import MutableSequence
 from contextlib import contextmanager
 from deepmerge import always_merger
-from lura import LuraError
 from lura import formats
 from lura import logs
 from lura import threads
@@ -91,7 +90,7 @@ class Result:
     file = file or sys.stdout
     file.write(self.format(fmt=fmt))
 
-class Error(LuraError):
+class Error(RuntimeError):
   'The error raised by `run()` when a process exits with the wrong code.'
 
   def __init__(self, result):
