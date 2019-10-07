@@ -12,9 +12,7 @@ Service = SlaveService
 
 def listen(service, host, port, key_path, cert_path, sync_timeout, backlog):
 
-  log = logger[listen.log_level]
   name = service.get_service_name()
-  log(f'[{name}@{host}:{port}] Listening')
   protocol_config = dict(
     allow_all_attrs = True,
     allow_delattr = True,
@@ -30,15 +28,18 @@ def listen(service, host, port, key_path, cert_path, sync_timeout, backlog):
 
 listen.log_level = logger.INFO
 
-def _patch_close(conn, name, log):
+def _patch_close(conn, on_close):
   conn_close = conn.close
   def close(*args, **kwargs):
-    log(f'[{conn.host}:{conn.port}] Disconnected from {name}')
+    on_close()
     conn_close(*args, **kwargs)
     conn.close = conn_close
   conn.close = close
 
-def connect(host, port, key_path, cert_path, sync_timeout):
+def connect(
+  host, port, key_path, cert_path, sync_timeout, on_connect=None,
+  on_close=None
+):
   log = logger[connect.log_level]
   log(f'[{host}:{port}] Connecting')
   protocol_config = dict(
@@ -51,8 +52,11 @@ def connect(host, port, key_path, cert_path, sync_timeout):
   conn = rpyc.ssl_connect(
     host, port=port, keyfile=key_path, certfile=cert_path,
     config=protocol_config)
+  if on_connect:
+    on_connect()
   name = conn.root.get_service_name()
-  _patch_close(conn, name, log)
+  if on_close:
+    _patch_close(conn, name, on_close)
   conn.host = host
   conn.port = port
   conn.service = conn.root
