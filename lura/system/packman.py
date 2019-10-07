@@ -14,9 +14,9 @@ class PackageManagers:
   def get_os(self):
     if self._os is None:
       family = self._system.os.family
-      if family == 'Debian':
+      if family == 'debian':
         self._os = Debian(self._system)
-      elif family == 'RedHat':
+      elif family == 'redhat':
         self._os = RedHat(self._system)
       else:
         raise ValueError(f'Unsupported os family: {family}')

@@ -14,12 +14,9 @@ log = logs.get_logger(__name__)
 
 class System:
 
-  def __init__(self, name=None, sudo=False):
+  def __init__(self, name=None):
     super().__init__()
     self._name = name
-    self.use_sudo = sudo
-    self.sudo_user = None
-    self.sudo_login = True
 
   @property
   @abstractmethod
@@ -45,29 +42,41 @@ class System:
   ):
     pass
 
+  @property
+  def __call__(self):
+    return self.run
+
+class Coreutils(System):
+
+  def __init__(self, name=None, sudo=False):
+    super().__init__(name)
+    self.sudo_use = sudo
+    self.sudo_user = None
+    self.sudo_login = True
+
   @contextmanager
   def sudo(self, user=None, login=True):
-    o_use_sudo = self.use_sudo
+    o_sudo_use = self.sudo_use
     o_sudo_user = self.sudo_user
     o_sudo_login = self.sudo_login
-    self.use_sudo = True
+    self.sudo_use = True
     self.sudo_user = user
     self.sudo_login = login
     try:
       yield self
     finally:
-      self.use_sudo = o_use_sudo
+      self.sudo_use = o_sudo_use
       self.sudo_user = o_sudo_user
       self.sudo_login = o_sudo_login
 
   @contextmanager
   def nosudo(self):
-    o_use_sudo = self.use_sudo
-    self.use_sudo = False
+    o_sudo_use = self.sudo_use
+    self.sudo_use = False
     try:
       yield self
     finally:
-      self.use_sudo = o_use_sudo
+      self.sudo_use = o_sudo_use
 
   def zero(self, *args, **kwargs):
     kwargs.setdefault('enforce', False)
@@ -288,32 +297,39 @@ class System:
       return hostname
     if self.isfile('/etc/hostname'):
       return self.run('cat /etc/hostname').stdout.rstrip()
-    raise ValueError('Unable to determine system hostname')
+    raise RuntimeError('Unable to determine system hostname')
 
   @property
   def shell(self):
     return self.run('echo $0').stdout.rstrip()
 
   @property
+  def python(self, error=False):
+    return self.which('python3.7', 'python3.6', 'python3', error=error)
+
+  @property
   def os(self):
     # FIXME lol
     if self.which('apt-get', 'apt'):
-      return attr(family='Debian')
+      return attr(family='debian')
     elif self.which('yum'):
-      return attr(family='RedHat')
+      return attr(family='redhat')
     else:
-      raise ValueError('Unknown operating system')
+      raise RuntimeError('Unable to determine operating system')
 
   def apply(self, config, *args, **kwargs):
+    config = config() if isinstance(config, type) else config
     return config.apply(self, *args, **kwargs)
 
   def delete(self, config, *args, **kwargs):
+    config = config() if isinstance(config, type) else config
     return config.delete(self, *args, **kwargs)
 
   def is_applied(self, config, *args, **kwargs):
+    config = config() if isinstance(config, type) else config
     return config.is_applied(self, *args, **kwargs)
 
-class Local(System):
+class Local(Coreutils):
 
   def __init__(self, name=None, sudo=False, sudo_password=None):
     super().__init__(name=name, sudo=sudo)
@@ -330,7 +346,7 @@ class Local(System):
     self.cpf(src, dst)
 
   def run(self, *args, **kwargs):
-    if self.use_sudo:
+    if self.sudo_use:
       kwargs['sudo'] = True
       if self.sudo_user:
         kwargs['sudo_user'] = self.sudo_user
@@ -343,7 +359,7 @@ class Local(System):
     res.return_code = res.code # like fabric
     return res
 
-class Ssh(System):
+class Ssh(Coreutils):
 
   def __init__(self, *args, name=None, sudo=False, **kwargs):
     super().__init__(name=name, sudo=sudo)
@@ -372,8 +388,10 @@ class Ssh(System):
       self._client.get(tmpsrc, dst)
 
   def run(self, argv, *args, **kwargs):
-    if self.use_sudo:
-      return self._client.sudo(
+    if self.sudo_use:
+      res = self._client.sudo(
         argv, *args, user=self.sudo_user, login=self.sudo_login, **kwargs)
+      res.code = res.return_code # like lura.run
+      return res
     else:
       return self._client.run(argv, *args, **kwargs)

@@ -1,4 +1,5 @@
 import os
+import sys
 import traceback
 from abc import abstractmethod
 from contextlib import contextmanager
@@ -16,7 +17,21 @@ from time import sleep
 
 log = logger = logs.get_logger(__name__)
 
-class Cancelled(RuntimeError): pass
+class Cancel(RuntimeError):
+
+  def __init__(self, config):
+    super().__init__('Configuration cancelled')
+    self.changes = config.changes
+
+  def update(self, config):
+    self.changes += config.changes
+
+class Fail(RuntimeError):
+
+  def __init__(self, config, exc_info):
+    super().__init__('Configuration failed')
+    self.changes = config.changes
+    self.exc_info = exc_info
 
 class Task:
 
@@ -54,6 +69,10 @@ class Task:
   def change(self, count=1):
     assert(count > 0)
     self.changes += count
+    return self.changes
+
+  __pos__ = change
+  __add__ = change
 
   def is_changed(self):
     assert(self.changes >= 0)
@@ -63,6 +82,7 @@ class Task:
 
 class BaseConfiguration(utils.Kwargs):
 
+  config_include       = []
   config_task_type     = Task
   config_ready_timeout = 2.0
   config_sync_timeout  = None
@@ -71,10 +91,11 @@ class BaseConfiguration(utils.Kwargs):
   log_level = log.INFO
 
   def __init__(self, **kwargs):
-    self._reset()
+    self.reset()
     super().__init__(**kwargs)
 
-  def _reset(self):
+  def reset(self):
+    self.parent = None
     self.system = None
     self.coordinator = None
     self.packages = None
@@ -101,51 +122,94 @@ class BaseConfiguration(utils.Kwargs):
     if not self.coordinator:
       return
     if self.coordinator.cancelled:
-      raise Cancelled()
+      raise Cancel(self)
     self.coordinator.wait(cond, timeout=timeout)
     if self.coordinator.cancelled:
-      raise Cancelled()
+      raise Cancel(self)
 
   def _ready(self):
-    self._wait('ready', timeout=self.config_ready_timeout)
+    if self.parent:
+      self.sync()
+    else:
+      self._wait('ready', timeout=self.config_ready_timeout)
 
   def sync(self):
     self._wait('sync', timeout=self.config_sync_timeout)
 
   def _done(self):
-    self._wait('done', timeout=self.config_done_timeout)
+    if self.parent:
+      self.sync()
+    else:
+      self._wait('done', timeout=self.config_done_timeout)
 
   def _cancel(self):
     if self.coordinator and self.coordinator.fail_early:
       self.coordinator.cancel()
 
-  def _run(
-    self, system, coordinator, on_work, on_start, on_finish, on_error,
+  def _run_includes(self, method):
+    include = self.config_include
+    if method == 'delete':
+      include = reversed(include)
+    res = []
+    for config in include:
+      if isinstance(config, type):
+        config = config()
+      call = getattr(config, method)
+      _ = call(self)
+      res.append(_)
+      if method == 'is_applied' and not _:
+        break
+    return res
+
+  def _run_method(
+    self, method, system, coordinator, on_work, on_start, on_finish, on_error,
     on_cancel, args, kwargs
   ):
-    self.system = system
-    self.coordinator = coordinator
-    self.args = args
-    self.kwargs = attr(kwargs)
+    if isinstance(system, BaseConfiguration):
+      parent = system
+      self.parent = parent
+      self.system = parent.system
+      self.coordinator = parent.coordinator
+      self.args = parent.args
+      self.kwargs = parent.kwargs
+      self.packages = parent.packages
+    else:
+      parent = None
+      self.system = system
+      self.coordinator = coordinator
+      self.args = args
+      self.kwargs = attr(kwargs)
+      self.packages = packman.PackageManagers(system)
     try:
       self._ready()
-      self.sync()
-      self.packages = packman.PackageManagers(system)
+      include_res = self._run_includes(method)
+      if method == 'is_applied':
+        if not all(include_res):
+          return False
+      else:
+        self.changes += sum(include_res)
       on_start()
       res = on_work()
       on_finish()
-      self.sync()
       self._done()
-      return res
+      if method == 'is_applied':
+        return res
+      return self.changes
     except Exception as exc:
-      if isinstance(exc, Cancelled):
+      if isinstance(exc, Cancel):
         on_cancel()
+        exc.update(self)
+        raise
+      elif isinstance(exc, Fail):
+        on_error()
+        exc.update(self)
+        raise
       else:
         self._cancel()
         on_error()
-      raise
+        raise Fail(self, sys.exc_info())
     finally:
-      self._reset()
+      self.reset()
 
   @abstractmethod
   def on_apply(self):
@@ -164,7 +228,8 @@ class BaseConfiguration(utils.Kwargs):
     pass
 
   def apply(self, system, *args, coordinator=None, **kwargs):
-    self._run(
+    return self._run_method(
+      'apply',
       system,
       coordinator,
       self.on_apply,
@@ -193,7 +258,8 @@ class BaseConfiguration(utils.Kwargs):
     pass
 
   def delete(self, system, *args, coordinator=None, **kwargs):
-    return self._run(
+    return self._run_method(
+      'delete',
       system,
       coordinator,
       self.on_delete,
@@ -222,7 +288,8 @@ class BaseConfiguration(utils.Kwargs):
     pass
 
   def is_applied(self, system, *args, coordinator=None, **kwargs):
-    return self._run(
+    return self._run_method(
+      'is_applied',
       system,
       coordinator,
       self.on_is_applied,
@@ -234,25 +301,23 @@ class BaseConfiguration(utils.Kwargs):
       kwargs,
     )
 
-  applied = property(is_applied)
-
 class Configuration(BaseConfiguration):
 
-  name                 = '(name not set)'
-  assets_object        = None
-  os_package_urls      = []
-  os_packages          = []
-  python_packages      = []
-  directories          = []
-  files                = []
-  assets               = []
-  template_files       = []
-  template_assets      = []
-  symlinks             = []
-  template_env         = {}
-  keep_os_packages     = True
-  keep_python_packages = True
-  keep_nonempty_dirs   = True
+  config_name                 = '(name not set)'
+  config_assets_object        = None
+  config_os_package_urls      = []
+  config_os_packages          = []
+  config_python_packages      = []
+  config_directories          = []
+  config_files                = []
+  config_assets               = []
+  config_template_files       = []
+  config_template_assets      = []
+  config_symlinks             = []
+  config_template_env         = {}
+  config_keep_os_packages     = True
+  config_keep_python_packages = True
+  config_keep_nonempty_dirs   = True
 
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
@@ -263,57 +328,57 @@ class Configuration(BaseConfiguration):
   def get_assets_object(self):
     'Return a `lura.assets.Assets` object.'
 
-    return self.assets_object
+    return self.config_assets_object
 
   def get_os_package_urls(self):
     "Returns a list of pairs: `('package name', 'package url')`"
 
-    return self.os_package_urls
+    return self.config_os_package_urls
 
   def get_os_packages(self):
     'Returns a `list` of os package names.'
 
-    return self.os_packages
+    return self.config_os_packages
 
   def get_python_packages(self):
     'Returns a `list` of python package names.'
 
-    return self.python_packages
+    return self.config_python_packages
 
   def get_directories(self):
     'Returns a `list` of directory paths.'
 
-    return self.directories
+    return self.config_directories
 
   def get_files(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.files
+    return self.config_files
 
   def get_assets(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.assets
+    return self.config_assets
 
   def get_template_files(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.template_files
+    return self.config_template_files
 
   def get_template_assets(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.template_assets
+    return self.config_template_assets
 
   def get_symlinks(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.symlinks
+    return self.config_symlinks
 
   def get_template_env(self):
     'Returns the `dict` environment used to evaluate templates.'
 
-    return self.template_env or self.__dict__.copy()
+    return self.config_template_env or self.__dict__.copy()
 
   #####
   ## utilities
@@ -357,13 +422,13 @@ class Configuration(BaseConfiguration):
       if self.packages.os.installed(os_packages):
         return
       self.packages.os.refresh()
-      task.change()
+      +task
 
   def apply_os_package_url(self, task, pkg, url):
     if pkg in self.packages.os:
       return
     self.packages.os.install_url(url)
-    task.change()
+    +task
 
   def apply_os_package_urls(self):
     os_package_urls = self.get_os_package_urls()
@@ -377,7 +442,7 @@ class Configuration(BaseConfiguration):
     if pkg in self.packages.os:
       return
     self.packages.os.install(pkg)
-    task.change()
+    +task
 
   def apply_os_packages(self):
     os_packages = self.get_os_packages()
@@ -391,7 +456,7 @@ class Configuration(BaseConfiguration):
     if pkg in self.packages.pip:
       return
     self.packages.pip.install(pkg)
-    task.change()
+    +task
 
   def apply_python_packages(self):
     python_packages = self.get_python_packages()
@@ -406,7 +471,7 @@ class Configuration(BaseConfiguration):
     if sys.isdir(dir):
       return
     sys.mkdirp(dir)
-    task.change()
+    +task
 
   def apply_directories(self):
     directories = self.get_directories()
@@ -421,7 +486,7 @@ class Configuration(BaseConfiguration):
     if sys.isfile(dst):
       return
     sys.put(src, dst)
-    task.change()
+    +task
 
   def apply_files(self):
     files = self.get_files()
@@ -440,7 +505,7 @@ class Configuration(BaseConfiguration):
       tmp = os.path.join(temp_dir, assets.basename(dst))
       assets.copy(src, tmp)
       sys.put(tmp, dst)
-    task.change()
+    +task
 
   def apply_assets(self):
     assets = self.get_assets()
@@ -459,7 +524,7 @@ class Configuration(BaseConfiguration):
       tmp = os.path.join(temp_dir, os.path.basename(dst))
       jinja2.expandff(env, src, tmp)
       sys.put(tmp, dst)
-    task.change()
+    +task
 
   def apply_template_files(self):
     template_files = self.get_template_files()
@@ -480,7 +545,7 @@ class Configuration(BaseConfiguration):
       tmpl = assets.loads(src)
       jinja2.expandsf(env, tmpl, tmp)
       sys.put(tmp, dst)
-    task.change()
+    +task
 
   def apply_template_assets(self):
     template_assets = self.get_template_assets()
@@ -495,7 +560,7 @@ class Configuration(BaseConfiguration):
     if self.islink(dst):
       return
     sys.lns(src, dst)
-    task.change()
+    +task
 
   def apply_symlinks(self):
     symlinks = self.get_symlinks()
@@ -517,20 +582,6 @@ class Configuration(BaseConfiguration):
     self.apply_symlinks()
     return super().on_apply()
 
-  def on_apply_start(self):
-    self.sync()
-    self.log(log, f'Applying configuration {self.name}')
-
-  def on_apply_finish(self):
-    self.sync()
-    self.log(log, f'Applied configuration {self.name}')
-
-  def on_apply_error(self):
-    self.log(log, traceback.format_exc().rstrip())
-
-  def on_apply_cancel(self):
-    self.log(log, 'Apply cancelled')
-
   #####
   ## delete steps
 
@@ -538,14 +589,14 @@ class Configuration(BaseConfiguration):
     if pkg not in self.packages.os:
       return
     self.packages.os.remove(pkg)
-    task.change()
+    +task
 
   def delete_os_packages(self):
     os_packages = list(reversed(self.get_all_os_packages()))
     msg = f'Delete {len(os_packages)} os packages'
     silent = not bool(os_packages)
     with self.task(msg, log=log, silent=None) as task:
-      if self.keep_os_packages:
+      if self.config_keep_os_packages:
         return
       for pkg in os_packages:
         self.delete_os_package(task, pkg)
@@ -554,14 +605,14 @@ class Configuration(BaseConfiguration):
     if pkg not in self.packages.pip:
       return
     self.packages.pip.remove(pkg)
-    task.change()
+    +task
 
   def delete_python_packages(self):
     python_packages = self.get_python_packages()
     msg = f'Delete {len(python_packages)} python packages'
     silent = not bool(python_packages)
     with self.task(msg, log=log, silent=silent) as task:
-      if self.keep_python_packages:
+      if self.config_keep_python_packages:
         return
       for pkg in python_packages:
         self.delete_python_package(task, pkg)
@@ -571,7 +622,7 @@ class Configuration(BaseConfiguration):
     if not sys.isfile(path):
       return
     sys.rmf(path)
-    task.change()
+    +task
 
   def delete_files(self):
     files = self.get_all_files()
@@ -585,10 +636,10 @@ class Configuration(BaseConfiguration):
     sys = self.system
     if not sys.isdir(dir):
       return
-    if self.keep_nonempty_dirs and len(sys.ls(dir)) > 0:
+    if self.config_keep_nonempty_dirs and len(sys.ls(dir)) > 0:
       return
     sys.rmrf(dir)
-    task.change()
+    +task
 
   def delete_directories(self):
     directories = self.get_directories()
@@ -604,20 +655,6 @@ class Configuration(BaseConfiguration):
     self.delete_files()
     self.delete_directories()
     return super().on_delete()
-
-  def on_delete_start(self):
-    self.sync()
-    self.log(log, f'Deleting configuration {self.name}')
-
-  def on_delete_finish(self):
-    self.sync()
-    self.log(log, f'Deleted configuration {self.name}')
-
-  def on_delete_error(self):
-    self.log(log, traceback.format_exc().rstrip())
-
-  def on_delete_cancel(self):
-    self.log(log, 'Delete cancelled')
 
   #####
   ## predicate steps

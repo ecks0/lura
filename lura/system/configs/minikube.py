@@ -11,7 +11,7 @@ log = logs.get_logger(__name__)
 class Minikube(system.Configuration):
 
   # system.Configuration
-  name                   = 'minikube'
+  config_name               = 'minikube'
 
   # Minikube
   kube_version              = '1.15.4'
@@ -20,9 +20,9 @@ class Minikube(system.Configuration):
   helm_version              = '2.14.3'
   vm_driver                 = 'none'
   bin_dir                   = '/usr/local/bin'
-  helm_timeout              = 45
   docker_registry_node_port = 32000
-  docker_registry_timeout   = 45
+  docker_registry_persist   = True
+  pod_cycle_timeout         = 45
 
   _docker_compose_url = 'https://github.com/docker/compose/releases/download/%s/docker-compose-Linux-x86_64'
   _kubectl_url = 'https://storage.googleapis.com/kubernetes-release/release/v%s/bin/linux/amd64/kubectl'
@@ -47,7 +47,7 @@ class Minikube(system.Configuration):
         sum = sys.wloads(sum_url).rstrip().split()[0]
       sys.wget(url, path, sum, alg)
       sys.chmod(path, 0o755)
-      task.change(2)
+      task + 2
 
   def apply_docker_compose_bin(self):
     url = self._docker_compose_url % self.docker_compose_version
@@ -65,7 +65,7 @@ class Minikube(system.Configuration):
         return
       sys.dumps(kc_path, self.kc)
       sys.chmod(kc_path, 0o755)
-      task.change(2)
+      task + 2
 
   def apply_minikube_bin(self):
     url = self._minikube_url % self.minikube_version
@@ -81,9 +81,9 @@ class Minikube(system.Configuration):
         url = self._helm_url % self.helm_version
         sum = sys.wloads(f'{url}.sha256').rstrip()
         sys.wget(url, tar, sum, 'sha256')
-      sys.run(f"tar xf {tar} -C {self.bin_dir} --strip=1 {bin}")
+      sys(f"tar xf {tar} -C {self.bin_dir} --strip=1 {bin}")
       sys.chmod(path, 0o755)
-      task.change(2)
+      task + 2
 
   def apply_helm_bins(self):
     with self.system.tempdir() as temp_dir:
@@ -96,52 +96,61 @@ class Minikube(system.Configuration):
       sys = self.system
       if sys.zero('minikube status'):
         return
-      sys.run("minikube start --kubernetes-version='v%s' --vm-driver=%s" % (
+      sys("minikube start --kubernetes-version='v%s' --vm-driver=%s" % (
         self.kube_version, self.vm_driver))
-      sys.run('kubectl cluster-info')
-      sys.run('minikube addons enable ingress')
-      sys.run('minikube addons enable storage-provisioner')
-      task.change()
+      sys('kubectl cluster-info')
+      sys('minikube addons enable ingress')
+      sys('minikube addons enable storage-provisioner')
+      +task
+
+  def pod_wait(self, state, name, namespace='default', rest=None):
+    with self.task(f'Wait for pod {name}', log) as task:
+      sys = self.system
+      # FIXME improve test
+      argv = f"kubectl get pod -n {namespace}|grep '^{name}.* Running '"
+      if state == 'up':
+        test = lambda: sys.zero(argv)
+      elif state == 'down':
+        test = lambda: sys.nonzero(argv)
+      else:
+        assert(False)
+      timeout = self.pod_cycle_timeout
+      if not poll(test, timeout=timeout, pause=1):
+        verb = 'start' if state == 'up' else 'stop'
+        raise TimeoutError(f'{name} did not {verb} within {timeout} seconds')
+      if rest is not None:
+        sleep(rest)
+
+  def pod_present(self, name, namespace='default'):
+    # FIXME improve test
+    return self.system.zero(f"kubectl get pod -n {namespace}|grep '^{name}'")
 
   def apply_helm(self):
     with self.task('Apply helm to cluster', log) as task:
-      sys = self.system
-      if sys.nonzero('kc get pod -n kube-system|grep tiller-deploy'):
-        sys.run('helm init --history-max 200')
-        task.change()
-    installed = task.changed
-    with self.task('Wait for helm', log) as task:
-      argv = "kubectl get pod -n kube-system|grep '^tiller-deploy.* Running '"
-      test = lambda: sys.zero(argv)
-      timeout = self.helm_timeout
-      if not poll(test, timeout=timeout, pause=1):
-        raise TimeoutError(f'tiller did not start within {timeout} seconds')
-      if installed:
-        # tiller takes a bit to startup after its deployment begins `Running`
-        sleep(15)
+      if not self.pod_present('tiller-deploy', 'kube-system'):
+        self.system('helm init --history-max 200')
+        +task
+    # tiller takes a bit to start responding after its pod starts `Running`
+    rest = 15 if task.changed else None
+    self.pod_wait('up', 'tiller-deploy', 'kube-system', rest)
 
   def apply_docker_registry(self):
     with self.task('Apply docker registry', log) as task:
       sys = self.system
-      if sys.nonzero("kubectl get pod|grep '^docker-registry'"):
+      if not self.pod_present('docker-registry'):
         repo = 'stable/docker-registry'
         name = 'docker-registry'
+        persist = str(bool(self.docker_registry_persist)).lower()
         opts = ','.join([
-          'persistence.enabled=true',
+          'persistence.enabled=%s' % persist,
           'service.type=NodePort',
           'service.nodePort=%s' % self.docker_registry_node_port,
         ])
-        sys.run(f'helm install {repo} --name {name} --set {opts}')
-        task.change()
-    with self.task('Wait for docker registry', log) as task:
-      argv = "kubectl get pod|grep '^docker-registry.* Running '"
-      test = lambda: sys.zero(argv)
-      timeout = self.docker_registry_timeout
-      if not poll(test, timeout=timeout, pause=1):
-        raise TimeoutError(
-          f'docker-registry did not start within {timeout} seconds')
+        sys(f'helm install {repo} --name {name} --set {opts}')
+        +task
+    self.pod_wait('up', 'docker-registry')
 
-  def apply_minikube(self):
+  def on_apply_finish(self):
     self.apply_docker_compose_bin()
     self.apply_kubectl_bin()
     self.apply_kc_bin()
@@ -150,9 +159,6 @@ class Minikube(system.Configuration):
     self.apply_cluster()
     self.apply_helm()
     self.apply_docker_registry()
-
-  def on_apply_finish(self):
-    self.apply_minikube()
     super().on_apply_finish()
 
   #####
@@ -160,12 +166,12 @@ class Minikube(system.Configuration):
 
   def delete_bin(self, bin):
     path = f'{self.bin_dir}/{bin}'
-    with self.task(f'Delete {bin}', log) as task:
+    with self.task(f'Delete {path}', log) as task:
       sys = self.system
       if not sys.isfile(path):
         return
       sys.rmf(path)
-      task.change()
+      +task
 
   def delete_bins(self):
     bins = list(reversed(list(os.path.basename(_) for _ in self._helm_bins)))
@@ -183,30 +189,21 @@ class Minikube(system.Configuration):
       sys = self.system
       if sys.nonzero('minikube status'):
         return
-      sys.run('minikube delete')
-      task.change()
+      sys('minikube delete')
+      +task
 
   def delete_docker_registry(self):
     with self.task('Delete docker registry') as task:
-      sys = self.system
-      deleted = lambda: sys.nonzero("kubectl get pod|grep '^docker-registry'")
-      if not deleted():
-        self.system.run('helm delete --purge docker-registry')
-        task.change()
-    with self.task('Wait for docker registry') as task:
-      timeout = self.docker_registry_timeout
-      if not poll(deleted, timeout=timeout, pause=1):
-        raise TimeoutError(
-          f'docker-registry did not stop within {timeout} seconds')
-
-  def delete_minikube(self):
-    self.delete_docker_registry()
-    self.delete_cluster()
-    self.delete_bins()
+      if self.pod_present('docker-registry'):
+        self.system('helm delete --purge docker-registry')
+        +task
+    self.pod_wait('down', 'docker-registry')
 
   def on_delete_start(self):
     super().on_delete_start()
-    self.delete_minikube()
+    self.delete_docker_registry()
+    self.delete_cluster()
+    self.delete_bins()
 
   def on_is_applied(self):
     sys = self.system
@@ -226,10 +223,11 @@ exec kubectl "$@"
 
 class MinikubeDebian(Minikube):
 
-  os_packages = [
-    'docker.io',
-    'socat',
-  ]
-
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
+
+  def get_os_packages(self):
+    return [
+      'docker.io',
+      'socat',
+    ]

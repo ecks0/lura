@@ -1,13 +1,12 @@
 import sys
 import threading
-from lura import LuraError
 from copy import deepcopy
 from lura import threads
 from lura import logs
 from lura import utils
 from lura.iter import always
 from lura.time import poll
-from lura.system.config import coordinator
+from lura.system.config import sync
 from multiprocessing import pool
 from time import sleep
 
@@ -28,7 +27,7 @@ class ThreadPool(threads.Thread):
 
 class ThreadExecutor(utils.Kwargs):
 
-  coordinator_type       = coordinator.Coordinator
+  coordinator_type       = sync.Coordinator
   threads_start_timeout  = 2.0
   threads_start_interval = 0.01
   threads_ready_timeout  = 2.0
@@ -62,18 +61,17 @@ class ThreadExecutor(utils.Kwargs):
     if not coord.cancelled:
       coord.notify('done')
 
-  def _run(self, fn, deploy):
-    configs = [deepcopy(deploy.config) for _ in range(0, len(deploy.systems))]
-    coord = self.coordinator_type(
-      configs, deploy.synchronize, deploy.fail_early)
+  def _run(self, fn, group):
+    configs = [deepcopy(group.config) for _ in range(0, len(group.systems))]
+    coord = self.coordinator_type(configs, group.synchronize, group.fail_early)
     items = zip(
       configs,
-      deploy.systems,
+      group.systems,
       always(coord),
-      always(deploy.args),
-      always(deploy.kwargs),
+      always(group.args),
+      always(group.kwargs),
     )
-    pool = ThreadPool.spawn(fn, items, deploy.workers)
+    pool = ThreadPool.spawn(fn, items, group.workers)
     try:
       self._run_loop(configs, coord)
       pool.join()
@@ -87,22 +85,22 @@ class ThreadExecutor(utils.Kwargs):
   def _apply(self, item):
     config, system, coord, args, kwargs = item
     try:
-      config.apply(system, *args, coordinator=coord, **kwargs)
+      return config.apply(system, *args, coordinator=coord, **kwargs)
     except Exception:
       return sys.exc_info()
 
-  def apply(self, deploy):
-    return self._run(self._apply, deploy)
+  def apply(self, group):
+    return self._run(self._apply, group)
 
   def _delete(self, item):
     config, system, coord, args, kwargs = item
     try:
-      config.delete(system, *args, coordinator=coord, **kwargs)
+      return config.delete(system, *args, coordinator=coord, **kwargs)
     except Exception:
       return sys.exc_info()
 
-  def delete(self, deploy):
-    return self._run(self._delete, deploy)
+  def delete(self, group):
+    return self._run(self._delete, group)
 
   def _is_applied(self, item):
     config, system, coord, args, kwargs = item
@@ -111,5 +109,5 @@ class ThreadExecutor(utils.Kwargs):
     except Exception:
       return sys.exc_info()
 
-  def is_applied(self, deploy):
-    return self._run(self._is_applied, deploy)
+  def is_applied(self, group):
+    return self._run(self._is_applied, group)
