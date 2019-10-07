@@ -2,13 +2,81 @@ import ctypes
 import inspect
 import sys
 import threading
-from lura import LuraError
 from lura import logs
 from lura.attrs import attr
 from lura.time import poll
 from time import sleep
 
 log = logs.get_logger(__name__)
+
+class Synchronize:
+  '''
+  As a decorator for functions or instance, class, or static methods:
+
+  - functions will lock on the function
+  - instance methods will lock on the instance
+  - class methods will lock on the class
+  - static methods will lock on the class
+
+  As a context manager:
+
+  The object to lock on is passed to the constructor as `wrapped`.
+
+  Inspired by:
+
+  http://blog.dscpl.com.au/2014/01/the-missing-synchronized-decorator.html
+  '''
+
+  lock = threading.RLock()
+  lock_name = '__synchronize__'
+
+  def __init__(self, wrapped=None, owner=None, type=threading.RLock):
+    super().__init__()
+    self.wrapped = wrapped
+    self.owner = owner
+    self.lock_type = type
+
+  def get_lock(self, obj):
+    if self.owner is not None:
+      obj = self.owner
+    ctx = vars(obj)
+    if self.lock_name not in ctx:
+      with self.lock:
+        if self.lock_name not in ctx:
+          setattr(obj, self.lock_name, self.lock_type())
+    return ctx[self.lock_name]
+
+  def __enter__(self):
+    lock = self.get_lock(self.wrapped)
+    lock.acquire()
+
+  def __exit__(self, *exc_info):
+    lock = self.get_lock(self.wrapped)
+    lock.release()
+
+  def __get__(self, obj, cls=None):
+    # instance, class, and static methods will enter here
+    if obj and cls:
+      def wrapper_instance(*args, **kwargs):
+        with self.get_lock(obj):
+          return self.wrapped(obj, *args, **kwargs)
+      return wrapper_instance
+    elif cls:
+      wrapped = self.wrapped.__get__(None, cls)
+      def wrapper_class(*args, **kwargs):
+        with self.get_lock(cls):
+          return wrapped(*args, **kwargs)
+      return wrapper_class
+    else:
+      # i'm not sure when this happens, but i'd like to find out
+      assert(False)
+
+  def __call__(self, *args, **kwargs):
+    # functions will enter here
+    with self.get_lock(self.wrapped):
+      return self.wrapped(*args, **kwargs)
+
+synchronize = Synchronize
 
 def _async_raise(tid, exc_type):
   '''
@@ -22,7 +90,7 @@ def _async_raise(tid, exc_type):
     ctypes.c_long(tid), ctypes.py_object(exc_type))
   return res != 0
 
-class Cancelled(LuraError):
+class Cancelled(RuntimeError):
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -72,14 +140,14 @@ class Thread(threading.Thread):
   def cancel(self, timeout=None, exc_type=Cancelled, force=False):
     '''
     Cancel by raising an exception in the running thread. This approach is
-    not recommended as it is not reliable and can fail in surprising ways.
-    However, it can work well when designed for. Two things to note:
+    not recommended as it is not reliable and can fail in surprising ways;
+    however, it can work well when designed for. Two things to note:
 
     - If the thread is executing C code (`sleep()`, `socket.accept()`), the
       exception will not be raised until execution returns to the python
       interpreter.
 
-    - Any C code running in the thread which invokes `PyErr_Clear` on the
+    - Any C code running in the thread which invokes `PyErr_Clear` from the
       C api before returning will effectively clear the raised exception.
 
     When `force` is `False`, one exception will be raised in the thread. When
@@ -96,19 +164,19 @@ class Thread(threading.Thread):
     http://tomerfiliba.com/recipes/Thread2/
     '''
 
-    def _cancel(tid):
+    def cancel(tid):
       _async_raise(tid, exc_type)
-      sleep(0.0001)
+      sleep(0)
       return not self.isAlive()
 
     tid = self._thread_get_id()
     if tid is None:
       return self.join(timeout)
     if not force:
-      _cancel(tid)
+      cancel(tid)
       return self.join(timeout)
     timeout = -1 if timeout is None else timeout
-    return poll(_cancel, timeout=timeout, pause=self.cancel_poll_interval)
+    return poll(cancel, timeout=timeout, pause=self.cancel_poll_interval)
 
   def run(self):
     '''
