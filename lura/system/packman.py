@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from lura import logs
+from lura.formats import json
 
 logger = logs.get_logger(__name__)
 
@@ -130,7 +131,7 @@ class Python(PackageManager):
 
   def __init__(self, system):
     super().__init__(system)
-    self._python = self._system.which(self.pythons, error=True)
+    self._python = self._system.which(*self.pythons, error=True)
 
   def _get_installed_packages(self):
     argv = f'{self._python} -m pip list --format json'
