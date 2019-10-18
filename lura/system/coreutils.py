@@ -213,8 +213,12 @@ class Coreutils(System):
     return self.hash(path, alg='sha512') == hash.hashf(local_file, alg='sha512')
 
   def which(self, *names, error=False):
-    names = ' '.join(quote(_) for _ in names)
-    return self.run(f'which {names}', enforce=False).stdout.rstrip()
+    for name in names:
+      if self.zero(f'which {quote(name)}'):
+        return name
+    else:
+      if error:
+        raise FileNotFoundError(f'Binary is missing: {",".join(names)}')
 
   def chmod(self, path, mode, recurse=False):
     if isinstance(mode, int):
