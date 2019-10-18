@@ -236,7 +236,8 @@ class Run(threading.local):
     ctx.sudo_helper = SudoHelper(
       user=ctx.sudo_user, group=ctx.sudo_group, password=ctx.sudo_password,
       login=ctx.sudo_login)
-    argv, askpass_path = ctx.sudo_helper.prepare(argv)
+    argv, askpass_path = ctx.sudo_helper.prepare(argv, ctx.cwd)
+    ctx.cwd = None
     if askpass_path:
       ctx.env['SUDO_ASKPASS'] = askpass_path
     return argv
