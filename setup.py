@@ -6,21 +6,24 @@ author           = 'Nick Zigarovich'
 author_email     = 'nick@zigarovich.io'
 url              = 'https://github.com/ecks0/lura'
 description      = 'a bag of tricks'
+python_requires  = '>= 3.6'
+install_requires = open('requirements.txt').read().strip().splitlines()
+packages         = find_packages()
+zip_safe         = True
 long_description = open('README.md').read()
 long_description_content_type = 'text/markdown'
-python_requires  = ">= 3.6"
-install_requires = open('requirements.txt').read().strip().splitlines()
 
 setup(
-  name = name,
-  version = version,
-  author = author,
-  author_email = author_email,
-  description = description,
-  long_description = long_description,
-  long_description_content_type = long_description_content_type,
-  python_requires = python_requires,
-  install_requires = install_requires,
-  packages = find_packages(),
-  include_package_data = True,
+  name=name,
+  version=version,
+  author=author,
+  author_email=author_email,
+  url=url,
+  description=description,
+  python_requires=python_requires,
+  install_requires=install_requires,
+  packages=packages,
+  zip_safe=zip_safe,
+  long_description=long_description,
+  long_description_content_type=long_description_content_type,
 )
