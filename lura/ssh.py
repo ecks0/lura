@@ -6,6 +6,7 @@ import sys
 from invoke import Responder
 from lura import logs
 from lura.threads import synchronize
+from shlex import quote
 from subprocess import list2cmdline as shjoin
 
 logger = logs.get_logger(__name__)
@@ -108,12 +109,15 @@ class Client:
   @synchronize
   def run(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
-    encoding=None, stdin=None, stdout=None, stderr=None, enforce=True
+    encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
+    cwd=None
   ):
     log = logger[self.log_level]
     self.connect()
     if not isinstance(argv, str):
       argv = shjoin(argv)
+    if cwd:
+      argv = f'bash -c cd\ {quote(cwd)}\ \&\&\ {quote(argv)}'
     log(f'[{self._host}] run: {argv}')
     return self._conn.run(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
@@ -124,12 +128,14 @@ class Client:
   def sudo(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
-    user=None, login=False
+    user=None, login=False, cwd=None
   ):
     log = logger[self.log_level]
     self.connect()
     if not isinstance(argv, str):
       argv = shjoin(argv)
+    if cwd:
+      argv = f'bash -c cd\ {quote(cwd)}\ \&\&\ {quote(argv)}'
     user_argv = argv
     argv = ['sudo']
     if login:
