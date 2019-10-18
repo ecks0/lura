@@ -1,12 +1,15 @@
 import os
-import shlex
 import shutil
 import subprocess as subp
 import sys
+from lura import logs
 from lura.plates import jinja2
 from lura.time import Timer
+from shlex import quote
 from tempfile import mkdtemp
 from time import sleep
+
+log = logs.get_logger(__name__)
 
 shjoin = subp.list2cmdline
 
@@ -50,7 +53,7 @@ class SudoHelper:
   def _timed_out(self):
     return self.timer.time > self.timeout
 
-  def _update_argv(self, argv):
+  def _update_argv(self, argv, cwd):
     argv_is_str = True
     if not isinstance(argv, str):
       argv_is_str = False
@@ -66,13 +69,17 @@ class SudoHelper:
     if self.login:
       argv.append('-i')
     argv.extend((self.shell, '-c'))
-    argv.append(f'touch {shlex.quote(self.ok_path)} && {user_argv}')
+    shell_argv = f'touch {quote(self.ok_path)} && '
+    if cwd:
+      shell_argv += f'cd {quote(cwd)} && '
+    shell_argv += user_argv
+    argv.append(shell_argv)
     return shjoin(argv) if argv_is_str else argv
 
   def _askpass_create(self):
     env = self.__dict__.copy()
     env['shell'] = self.shell
-    env['quote'] = shlex.quote
+    env['quote'] = quote
     jinja2.expandsf(env, self._askpass_tmpl, self.askpass_path)
     os.chmod(self.askpass_path, 0o700)
 
@@ -135,12 +142,12 @@ class SudoHelper:
     else:
       raise SudoTimeout('Timeout awaiting sudo ok (incorrect password?)')
 
-  def prepare(self, argv):
+  def prepare(self, argv, cwd=None):
     if self.ok_path is not None:
       self.cleanup()
     self.temp_dir = mkdtemp()
     self.ok_path = os.path.join(self.temp_dir, 'ok')
-    argv = self._update_argv(argv)
+    argv = self._update_argv(argv, cwd)
     if self.password:
       self.fifo_path = os.path.join(self.temp_dir, 'fifo')
       self.askpass_path = os.path.join(self.temp_dir, 'askpass')
@@ -176,15 +183,15 @@ cat < {{ quote(fifo_path) }}
 
 def popen(
   argv, *args, sudo_user=None, sudo_group=None, sudo_password=None,
-  sudo_login=None, env=None, **kwargs
+  sudo_login=None, env=None, cwd=None, **kwargs
 ):
+  if env is None:
+    env = dict(os.environ)
   sudo_helper = SudoHelper(
     user=sudo_user, group=sudo_group, password=sudo_password, login=sudo_login)
-  argv, askpass_path = sudo_helper.prepare(argv)
+  argv, askpass_path = sudo_helper.prepare(argv, cwd)
   try:
     if askpass_path:
-      if env is None:
-        env = dict(os.environ)
       env['SUDO_ASKPASS'] = askpass_path
     proc = subp.Popen(argv, *args, env=env, **kwargs)
     sudo_helper.wait()
