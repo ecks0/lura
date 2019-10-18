@@ -214,8 +214,9 @@ class Coreutils(System):
 
   def which(self, *names, error=False):
     for name in names:
-      if self.zero(f'which {quote(name)}'):
-        return name
+      path = self.run(f'which {quote(name)}', enforce=False).stdout.rstrip()
+      if path:
+        return path
     else:
       if error:
         raise FileNotFoundError(f'Binary is missing: {",".join(names)}')
@@ -349,7 +350,7 @@ class Local(Coreutils):
   def get(self, src, dst):
     self.cpf(src, dst)
 
-  def run(self, *args, **kwargs):
+  def run(self, argv, *args, **kwargs):
     if self.sudo_use:
       kwargs['sudo'] = True
       if self.sudo_user:
@@ -358,8 +359,8 @@ class Local(Coreutils):
         kwargs['sudo_password'] = self.sudo_password
       if self.sudo_login is True:
         kwargs['sudo_login'] = True
-    kwargs['shell'] = True
-    res = run(*args, **kwargs)
+    argv = ['sh', '-c', argv] # FIXME
+    res = run(argv, *args, **kwargs)
     res.return_code = res.code # like fabric
     return res
 
