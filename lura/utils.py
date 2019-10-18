@@ -3,12 +3,13 @@ from collections import MutableMapping
 from collections import MutableSequence
 from lura.attrs import attr
 
+# FIXME this needs a different name
 def deepcopy(obj, map_cls=attr, seq_cls=None):
   types = (MutableMapping, MutableSequence)
   if isinstance(obj, MutableMapping):
     cls = map_cls or type(obj)
     return cls(
-      (k, copy(v, map_cls, seq_cls))
+      (k, deepcopy(v, map_cls, seq_cls))
       if isinstance(v, types)
       else (k, v)
       for (k, v) in obj.items()
@@ -16,7 +17,7 @@ def deepcopy(obj, map_cls=attr, seq_cls=None):
   elif isinstance(obj, MutableSequence):
     cls = seq_cls or type(obj)
     return cls(
-      copy(item, map_cls, seq_cls)
+      deepcopy(item, map_cls, seq_cls)
       if isinstance(item, types)
       else item
       for item in obj
