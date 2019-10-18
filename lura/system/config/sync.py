@@ -20,6 +20,7 @@ class Coordinator(utils.Kwargs):
     self.synchronize = synchronize
     self.fail_early = fail_early
     self.cancelled = None
+    self.rlock = threading.RLock()
     super().__init__(**kwargs)
 
   @property

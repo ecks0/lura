@@ -33,6 +33,9 @@ class Fail(RuntimeError):
     self.changes = config.changes
     self.exc_info = exc_info
 
+  def update(self, config):
+    self.changes += config.changes
+
 class Task:
 
   def __init__(
@@ -79,6 +82,15 @@ class Task:
     return self.changes > 0
 
   changed = property(is_changed)
+
+  @contextmanager
+  def synchronized(self):
+    coord = self.config.coordinator
+    if coord:
+      with coord.rlock:
+        yield
+    else:
+      yield
 
 class BaseConfiguration(utils.Kwargs):
 
@@ -158,8 +170,6 @@ class BaseConfiguration(utils.Kwargs):
       call = getattr(config, method)
       _ = call(self)
       res.append(_)
-      if method == 'is_applied' and not _:
-        break
     return res
 
   def _run_method(
@@ -184,18 +194,16 @@ class BaseConfiguration(utils.Kwargs):
     try:
       self._ready()
       include_res = self._run_includes(method)
-      if method == 'is_applied':
-        if not all(include_res):
-          return False
-      else:
+      if method != 'is_applied':
         self.changes += sum(include_res)
       on_start()
       res = on_work()
+      if method == 'is_applied':
+        res = all(include_res + [res])
+        self.applied = res
       on_finish()
       self._done()
-      if method == 'is_applied':
-        return res
-      return self.changes
+      return self.applied if method == 'is_applied' else self.changes
     except Exception as exc:
       if isinstance(exc, Cancel):
         on_cancel()
@@ -306,16 +314,16 @@ class Configuration(BaseConfiguration):
 
   config_name                 = '(name not set)'
   config_assets_object        = None
-  config_os_package_urls      = []
-  config_os_packages          = []
-  config_python_packages      = []
-  config_directories          = []
-  config_files                = []
-  config_assets               = []
-  config_template_files       = []
-  config_template_assets      = []
-  config_symlinks             = []
-  config_template_env         = {}
+  config_os_package_urls      = None
+  config_os_packages          = None
+  config_python_packages      = None
+  config_directories          = None
+  config_files                = None
+  config_assets               = None
+  config_template_files       = None
+  config_template_assets      = None
+  config_symlinks             = None
+  config_template_env         = None
   config_keep_os_packages     = True
   config_keep_python_packages = True
   config_keep_nonempty_dirs   = True
@@ -334,47 +342,47 @@ class Configuration(BaseConfiguration):
   def get_os_package_urls(self):
     "Returns a list of pairs: `('package name', 'package url')`"
 
-    return self.config_os_package_urls
+    return self.config_os_package_urls or []
 
   def get_os_packages(self):
     'Returns a `list` of os package names.'
 
-    return self.config_os_packages
+    return self.config_os_packages or []
 
   def get_python_packages(self):
     'Returns a `list` of python package names.'
 
-    return self.config_python_packages
+    return self.config_python_packages or []
 
   def get_directories(self):
     'Returns a `list` of directory paths.'
 
-    return self.config_directories
+    return self.config_directories or []
 
   def get_files(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.config_files
+    return self.config_files or []
 
   def get_assets(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.config_assets
+    return self.config_assets or []
 
   def get_template_files(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.config_template_files
+    return self.config_template_files or []
 
   def get_template_assets(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.config_template_assets
+    return self.config_template_assets or []
 
   def get_symlinks(self):
     'Returns a `list` of pairs: `(src, dst)`'
 
-    return self.config_symlinks
+    return self.config_symlinks or []
 
   def get_template_env(self):
     'Returns the `dict` environment used to evaluate templates.'
@@ -558,7 +566,7 @@ class Configuration(BaseConfiguration):
 
   def apply_symlink(self, task, src, dst):
     sys = self.system
-    if self.islink(dst):
+    if sys.islink(dst):
       return
     sys.lns(src, dst)
     +task
@@ -609,7 +617,7 @@ class Configuration(BaseConfiguration):
     os_packages = list(reversed(self.get_all_os_packages()))
     msg = f'Delete {len(os_packages)} os packages'
     silent = not bool(os_packages)
-    with self.task(msg, log=log, silent=None) as task:
+    with self.task(msg, log=log, silent=silent) as task:
       if self.config_keep_os_packages:
         return
       for pkg in os_packages:
@@ -633,7 +641,7 @@ class Configuration(BaseConfiguration):
 
   def delete_file(self, task, path):
     sys = self.system
-    if not sys.isfile(path):
+    if not (sys.isfile(path) or sys.islink(path)):
       return
     sys.rmf(path)
     +task
@@ -644,7 +652,7 @@ class Configuration(BaseConfiguration):
     silent = not bool(files)
     with self.task(msg, log=log, silent=silent) as task:
       for file in files:
-        self.delete_file(task, path)
+        self.delete_file(task, file)
 
   def delete_directory(self, task, dir):
     sys = self.system
@@ -686,10 +694,11 @@ class Configuration(BaseConfiguration):
   ## predicate steps
 
   def on_is_applied(self):
+    sys = self.system
     return (
       all(_ in self.packages.os for _ in self.get_os_packages()) and
       all(_ in self.packages.pip for _ in self.get_python_packages()) and
-      all(system.exists(_) or system.islink(_) for _ in self.get_all_files())
+      all(sys.exists(_) or sys.islink(_) for _ in self.get_all_files())
     )
 
   def on_is_applied_start(self):
