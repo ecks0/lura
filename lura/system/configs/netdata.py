@@ -73,7 +73,7 @@ class Debian(OsBase):
 
   def apply_rc_local(self):
     sys = self.system
-    with self.task('Enable rc.local for ksm') as task:
+    with self.task('Apply rc.local for ksm') as task:
       if self.apply_ksm == False:
         return
       path = '/etc/rc.local'
@@ -123,7 +123,7 @@ class RedHat7(OsBase):
 
   def apply_rc_local(self):
     sys = self.system
-    with sys.task('Enable rc.local for ksm') as task:
+    with sys.task('Apply rc.local for ksm') as task:
       if self.apply_ksm == False:
         return
       path = '/etc/rc.d/rc.local'
@@ -374,7 +374,7 @@ class Healthd(system.Configuration):
     task + (1 + int(created))
 
   def apply_healthd_change(self, file, selector, update):
-    with self.task(f'Apply health.d change {file}', log) as task:
+    with self.task(f'Apply health.d {file}', log) as task:
       path = f'{self.root_dir}/netdata/usr/lib/netdata/conf.d/health.d/{file}'
       checks = self.load_checks(path)
       sum_old = hashs(self.format_checks(checks))
