@@ -212,6 +212,9 @@ class Coreutils(System):
   def isfilecontents(self, path, local_file):
     return self.hash(path, alg='sha512') == hash.hashf(local_file, alg='sha512')
 
+  def readlink(self, path):
+    return self.run(f'readlink {quote(path)}').stdout.rstrip()
+
   def which(self, *names, error=False):
     for name in names:
       path = self.run(f'which {quote(name)}', enforce=False).stdout.rstrip()
@@ -264,6 +267,13 @@ class Coreutils(System):
     if not self.isdir(dir):
       return
     self.run(f'rmdir {qoute(dir)}')
+
+  def backuponce(self, path, end='.dist'):
+    backup = f'{path}{end}'
+    if self.exists(backup):
+      return False
+    self.cpf(path, backup)
+    return True
 
   def wget(self, url, path, sum=None, alg='sha512'):
     url, path = quote(url), quote(path)
