@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from lura import logs
 from lura.formats import json
+from shlex import quote
 
 logger = logs.get_logger(__name__)
 
@@ -77,7 +78,10 @@ class Debian(PackageManager):
   def _get_installed_packages(self):
     argv = "dpkg-query -W -f='${binary:Package}|${Version}&'"
     packages = self._system.stdout(argv).rstrip('&')
-    return dict(pkg.split('|') for pkg in packages.split('&'))
+    return {
+      name.split(':')[0]: version
+      for (name, version) in (pkg.split('|') for pkg in packages.split('&'))
+    }
 
   def install(self, *packages):
     if len(packages) == 1 and not isinstance(packages[0], str):
@@ -151,4 +155,6 @@ class Python(PackageManager):
       self.install(url)
 
   def remove(self, *packages, purge=False):
-    self._system.run(f"yes|{self._python} -m pip remove {' '.join(packages)}")
+    packages = ' '.join(packages)
+    argv = f'yes|{self._python} -m pip uninstall {packages}'
+    self._system.run(f'bash -c "{argv}"')
