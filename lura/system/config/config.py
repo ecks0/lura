@@ -455,7 +455,7 @@ class Configuration(BaseConfiguration):
 
   def apply_os_packages(self):
     os_packages = self.get_os_packages()
-    msg = f'Apply {len(os_packages)} os packages'
+    msg = f'Apply {len(os_packages)} os package(s)'
     silent = not bool(os_packages)
     with self.task(msg, log=log, silent=silent) as task:
       for pkg in os_packages:
@@ -469,11 +469,11 @@ class Configuration(BaseConfiguration):
 
   def apply_python_packages(self):
     python_packages = self.get_python_packages()
-    msg = f'Apply {len(python_packages)} python packages'
+    msg = f'Apply {len(python_packages)} python package(s)'
     silent = not bool(python_packages)
     with self.task(msg, log=log, silent=silent) as task:
       for pkg in python_packages:
-        self.appy_python_package(task, pkg)
+        self.apply_python_package(task, pkg)
 
   def apply_directory(self, task, dir):
     sys = self.system
@@ -583,6 +583,7 @@ class Configuration(BaseConfiguration):
     self.apply_os_package_list_update()
     self.apply_os_package_urls()
     self.apply_os_packages()
+    self.apply_python_packages()
     self.apply_directories()
     self.apply_files()
     self.apply_assets()
@@ -603,7 +604,6 @@ class Configuration(BaseConfiguration):
   def on_apply_cancel(self):
     super().on_apply_cancel()
 
-
   #####
   ## delete steps
 
@@ -615,7 +615,7 @@ class Configuration(BaseConfiguration):
 
   def delete_os_packages(self):
     os_packages = list(reversed(self.get_all_os_packages()))
-    msg = f'Delete {len(os_packages)} os packages'
+    msg = f'Delete {len(os_packages)} os package(s)'
     silent = not bool(os_packages)
     with self.task(msg, log=log, silent=silent) as task:
       if self.config_keep_os_packages:
@@ -631,7 +631,7 @@ class Configuration(BaseConfiguration):
 
   def delete_python_packages(self):
     python_packages = self.get_python_packages()
-    msg = f'Delete {len(python_packages)} python packages'
+    msg = f'Delete {len(python_packages)} python package(s)'
     silent = not bool(python_packages)
     with self.task(msg, log=log, silent=silent) as task:
       if self.config_keep_python_packages:
@@ -696,6 +696,7 @@ class Configuration(BaseConfiguration):
   def on_is_applied(self):
     sys = self.system
     return (
+      all(_ in self.packages.os for (_, __) in self.get_os_package_urls()) and
       all(_ in self.packages.os for _ in self.get_os_packages()) and
       all(_ in self.packages.pip for _ in self.get_python_packages()) and
       all(sys.exists(_) or sys.islink(_) for _ in self.get_all_files())
