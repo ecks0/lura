@@ -1,3 +1,5 @@
+'Netdata configurations.'
+
 import io
 from configparser import ConfigParser
 from lura import logs
@@ -9,16 +11,20 @@ from shlex import quote
 log = logs.get_logger(__name__)
 
 class OsBase(system.Configuration):
-  'Base class for Debian and RedHat.'
+  '''
+  Base class for all operating systems.
+
+  - configure the python package manager api to use python2 rather than
+    python3, because that's how netdata has chosen to live its life
+  - install python packages common to all platforms
+  '''
 
   config_python_packages = [
     'dnspython',
   ]
   config_keep_python_packages = False
-  apply_ksm = True
 
   def setup_python(self):
-    # the python package manager will want to use python3, make it use python2
     self.packages.pip._python = 'python2'
 
   def on_apply_start(self):
@@ -34,7 +40,9 @@ class OsBase(system.Configuration):
     super().on_is_applied_start()
 
 class Debian(OsBase):
-  'Install Debian packages needed by netdata and enable rc-local if using ksm.'
+  '''
+  Install Debian packages needed by netdata and enable rc-local if using ksm.
+  '''
 
   config_name = 'netdata.Debian'
   config_os_packages = [
@@ -61,6 +69,7 @@ class Debian(OsBase):
     'libmnl0',
     'netcat',
   ]
+  apply_ksm = True
 
   def apply_rc_local(self):
     sys = self.system
@@ -80,7 +89,9 @@ class Debian(OsBase):
     super().on_apply_finish()
 
 class RedHat7(OsBase):
-  'Install RedHat7 packages needed by netdata and enable rc-local if using ksm.'
+  '''
+  Install RedHat7 packages needed by netdata and enable rc-local if using ksm.
+  '''
 
   config_name = 'netdata.RedHat7'
   config_os_package_urls = [
@@ -108,6 +119,7 @@ class RedHat7(OsBase):
     'libmnl',
     'nc',
   ]
+  apply_ksm = True
 
   def apply_rc_local(self):
     sys = self.system
@@ -123,14 +135,27 @@ class RedHat7(OsBase):
     self.apply_rc_local()
     super().on_apply_finish()
 
-class Netdata(system.Configuration):
+class Package(system.Configuration):
+  '''
+  Install the netdata package and optionally arrange for ksm to be enabled
+  at boot.
 
-  config_name     = 'netdata.Netdata'
-  version         = '1.18.1'
-  root_dir        = '/opt'
-  apply_ksm       = True
-  delete_ksm      = True
-  ksm_interval    = 1000
+  ksm[1] is 'kernel samepage merging', a feature of the Linux kernel which can
+  merge identical memory pages into a single copy-on-write page, thus
+  introducing significant memory savings for certain workloads. The netdata
+  authors claim that ksm can reduce netdata's memory usage by up to 60%.
+  There's really no reason to disable it, but this is a base class, so we leave
+  it to you.
+
+  [1] https://en.wikipedia.org/wiki/Kernel_same-page_merging
+  '''
+
+  config_name  = 'netdata.Package'
+  version      = '1.18.1'
+  root_dir     = '/opt'
+  apply_ksm    = True
+  delete_ksm   = True
+  ksm_interval = 1000
 
   _ksm = [
     'echo 1 >/sys/kernel/mm/ksm/run',
@@ -160,7 +185,7 @@ class Netdata(system.Configuration):
         +task
 
   def apply_netdata(self):
-    with self.task('Apply netdata', log) as task:
+    with self.task('Apply netdata package', log) as task:
       sys = self.system
       if sys.exists(f'{self.root_dir}/netdata/etc/netdata'):
         return
@@ -179,7 +204,7 @@ class Netdata(system.Configuration):
     super().on_apply_finish()
 
   def delete_netdata(self):
-    with self.task('Deleting netdata', log) as task:
+    with self.task('Delete netdata package', log) as task:
       sys = self.system
       dir = f'{self.root_dir}/netdata'
       if not sys.exists(dir) or len(sys.ls(dir)) == 0:
@@ -189,7 +214,7 @@ class Netdata(system.Configuration):
       +task
 
   def delete_leftovers(self):
-    with self.task('Deleting leftover files', log) as task:
+    with self.task('Delete leftover files', log) as task:
       sys = self.system
       path = '/etc/systemd/system/multi-user.target.wants/netdata.service'
       if sys.exists(path) or sys.islink(path):
@@ -197,7 +222,7 @@ class Netdata(system.Configuration):
         +task
 
   def delete_ksm(self):
-    with self.task('Deleting kernel samepage merging', log) as task:
+    with self.task('Delete kernel samepage merging', log) as task:
       sys = self.system
       if not (self.delete_ksm and sys.exists('/etc/rc.local')):
         return
@@ -228,8 +253,24 @@ class Netdata(system.Configuration):
     )
 
 class Conf(system.Configuration):
+  '''
+  Set custom values in netdata.conf. This can be done in three ways:
 
-  config_name          = 'netdata.Conf'
+  - set the class variable `netdata_conf_changes`
+  - pass `netdata_conf_changes` to the constructor
+  - override `get_netdata_conf_changes()` in a subclass
+
+  `netdata_conf_changes` must be a list, and each item must be a list or
+  tuple of:
+
+    ('config section', 'variable name', 'new value')
+
+  For example, to set the history limit to 24 hours:
+
+    ('global', 'history', 86400)
+  '''
+
+  config_name          = 'netdata.conf'
   root_dir             = '/opt'
   netdata_conf_changes = None
 
@@ -271,6 +312,21 @@ class Conf(system.Configuration):
     super().on_apply_finish()
 
 class Healthd(system.Configuration):
+  '''
+  Set custom values for health.d conf files. This can be done in three ways:
+
+  - set the class variable `healthd_changes`
+  - pass `healthd_changes` to the constructor
+  - override `get_healthd_changes()` in a subclass
+
+  `healthd_changes` must be a list, and each item must be a list or tuple of:
+
+    ('conf filename', {selector fields}, {update fields})
+
+  For example, to silence the `ram_in_use` alarm on Linux:
+
+   ('ram.conf', {'alarm': 'ram_in_use', 'os': 'linux'}, {'to': 'silent'}),
+  '''
 
   config_name     = 'netdata.Healthd'
   root_dir        = '/opt'
@@ -345,6 +401,7 @@ class Healthd(system.Configuration):
     super().on_apply_finish()
 
 class Service(system.Configuration):
+  'Starts the netdata service on apply and stops it on delete.'
 
   config_name = 'netdata.Service'
 
