@@ -19,25 +19,11 @@ class OsBase(system.Configuration):
   - install python packages common to all platforms
   '''
 
+  config_python_version  = 2
   config_python_packages = [
     'dnspython',
   ]
   config_keep_python_packages = False
-
-  def setup_python(self):
-    self.packages.pip._python = 'python2'
-
-  def on_apply_start(self):
-    self.setup_python()
-    super().on_apply_start()
-
-  def on_delete_start(self):
-    self.setup_python()
-    super().on_delete_start()
-
-  def on_is_applied_start(self):
-    self.setup_python()
-    super().on_is_applied_start()
 
 class Debian(OsBase):
   '''
@@ -156,6 +142,7 @@ class Package(system.Configuration):
   apply_ksm    = True
   delete_ksm   = True
   ksm_interval = 1000
+  telemetry    = True
 
   _ksm = [
     'echo 1 >/sys/kernel/mm/ksm/run',
@@ -193,6 +180,8 @@ class Package(system.Configuration):
         repo_dir = f'{temp_dir}/netdata'
         repo_url = 'https://github.com/netdata/netdata'
         args = f'--dont-wait --dont-start-it --install {quote(self.root_dir)}'
+        if not self.telemetry:
+          args = f'{args} --disable-telemetry'
         sys(f'git clone {repo_url} {repo_dir}')
         sys(f'git checkout v{self.version}', cwd=repo_dir)
         sys(f'$SHELL netdata-installer.sh {args}', cwd=repo_dir)
@@ -270,7 +259,7 @@ class Conf(system.Configuration):
     ('global', 'history', 86400)
   '''
 
-  config_name          = 'netdata.conf'
+  config_name          = 'netdata.Conf'
   root_dir             = '/opt'
   netdata_conf_changes = None
 
