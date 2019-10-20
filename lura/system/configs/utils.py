@@ -12,9 +12,12 @@ log = logs.get_logger(__name__)
 class Shell(system.Configuration):
 
   config_name = 'Shell'
-  shell       = '/bin/sh'
   logger      = log
   log_level   = log.INFO
+  shell       = '/bin/bash'
+  # FIXME we use bash because getting other shells to execute their rc files
+  #       reliably is a pain. i'd like this to be e.g. /bin/sh but i'm not
+  #       sure how to do that portably
 
   def get_argv(self):
     return self.args[0]
