@@ -358,7 +358,12 @@ class Local(Coreutils):
     self.cpf(src, dst)
 
   def get(self, src, dst):
+    with self.nosudo():
+      user = self.whoami()
+      group = self.run('id -gn').stdout.strip()
     self.cpf(src, dst)
+    self.chown(dst, user)
+    self.chgrp(dst, group)
 
   def run(self, argv, *args, **kwargs):
     if self.sudo_use:
@@ -371,7 +376,8 @@ class Local(Coreutils):
         kwargs['sudo_login'] = True
     argv = ['sh', '-c', argv] # FIXME
     res = run(argv, *args, **kwargs)
-    res.return_code = res.code # like fabric
+    res.return_code = res.code
+    res.command = res.args
     return res
 
 class Ssh(Coreutils):
@@ -406,7 +412,8 @@ class Ssh(Coreutils):
     if self.sudo_use:
       res = self._client.sudo(
         argv, *args, user=self.sudo_user, login=self.sudo_login, **kwargs)
-      res.code = res.return_code # like lura.run
+      res.code = res.return_code
+      res.args = res.command
       return res
     else:
       return self._client.run(argv, *args, **kwargs)
