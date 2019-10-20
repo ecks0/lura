@@ -424,7 +424,7 @@ class CustomSender(system.Configuration):
         if line == '':
           break
         if line.strip() == 'DEFAULT_RECIPIENT_CUSTOM=""':
-          buf.write('DEFAULT_RECIPIENT_CUSTOM="discord"\n')
+          buf.write('DEFAULT_RECIPIENT_CUSTOM="custom"\n')
           continue
         if line.strip() == 'custom_sender() {':
           buf.write(custom_sender)
