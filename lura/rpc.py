@@ -26,8 +26,6 @@ def listen(service, host, port, key_path, cert_path, sync_timeout, backlog):
     authenticator=authenticator, backlog=backlog, logger=logger)
   server.start()
 
-listen.log_level = logger.INFO
-
 def _patch_close(conn, on_close):
   conn_close = conn.close
   def close(*args, **kwargs):
@@ -40,8 +38,6 @@ def connect(
   host, port, key_path, cert_path, sync_timeout, on_connect=None,
   on_close=None
 ):
-  log = logger[connect.log_level]
-  log(f'[{host}:{port}] Connecting')
   protocol_config = dict(
     allow_all_attrs = True,
     allow_delattr = True,
@@ -56,11 +52,8 @@ def connect(
     on_connect()
   name = conn.root.get_service_name()
   if on_close:
-    _patch_close(conn, name, on_close)
+    _patch_close(conn, on_close)
   conn.host = host
   conn.port = port
   conn.service = conn.root
-  log(f'[{conn.host}:{conn.port}] Connected to {name}')
   return conn
-
-connect.log_level = logger.INFO
