@@ -389,6 +389,75 @@ class Healthd(system.Configuration):
     self.apply_healthd_changes()
     super().on_apply_finish()
 
+class CustomSender(system.Configuration):
+  '''
+  Inject a custom_sender() bash function into health_alarm_notify.conf. This
+  can be done in three ways:
+
+  - set the class variable `custom_sender`
+  - pass `custom_sender` to the constructor
+  - override `get_custom_sender()` in a subclass
+  '''
+
+  config_name = 'netdata.Notifications'
+  root_dir = '/opt'
+  custom_sender = None
+
+  def get_custom_sender(self):
+    return self.custom_sender
+
+  def apply_custom_sender(self):
+    with self.task('Apply custom sender') as task:
+      sys = self.system
+      custom_sender = self.get_custom_sender()
+      if not custom_sender:
+        return
+      dir = f'{self.root_dir}/netdata/usr/lib/netdata/conf.d'
+      path = f'{dir}/health_alarm_notify.conf'
+      cf = sys.loads(path)
+      if custom_sender in cf:
+        return
+      cf = io.StringIO(cf)
+      buf = io.StringIO()
+      while True:
+        line = cf.readline()
+        if line == '':
+          break
+        if line.strip() == 'DEFAULT_RECIPIENT_CUSTOM=""':
+          buf.write('DEFAULT_RECIPIENT_CUSTOM="discord"\n')
+          continue
+        if line.strip() == 'custom_sender() {':
+          buf.write(custom_sender)
+          while True:
+            line = cf.readline()
+            if line == '':
+              raise RuntimeError('Received EOF before end of custom_sender()')
+            if line.strip() == '}':
+              break
+          continue
+        buf.write(line)
+      cf, buf = cf.getvalue(), buf.getvalue()
+      if cf != buf:
+        sys.dumps(path, buf)
+        +task
+
+  def on_apply_finish(self):
+    self.apply_custom_sender()
+    super().on_apply_finish()
+
+  def on_is_applied(self):
+    custom_sender = self.get_custom_sender()
+    if not custom_sender:
+      return super().on_is_applied()
+    sys = self.system
+    dir = f'{self.root_dir}/netdata/usr/lib/netdata/conf.d'
+    path = f'{dir}/health_alarm_notify.conf'
+    return (
+      super().on_is_applied() and
+      sys.exists(path) and
+      custom_sender in sys.loads(path)
+    )
+
 class Service(system.Configuration):
   'Starts the netdata service on apply and stops it on delete.'
 
