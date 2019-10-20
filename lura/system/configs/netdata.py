@@ -420,16 +420,16 @@ class CustomSender(system.Configuration):
         line = cf.readline()
         if line == '':
           break
-        if line.strip() == 'DEFAULT_RECIPIENT_CUSTOM=""':
+        if line.rstrip() == 'DEFAULT_RECIPIENT_CUSTOM=""':
           buf.write('DEFAULT_RECIPIENT_CUSTOM="custom"\n')
           continue
-        if line.strip() == 'custom_sender() {':
+        if line.rstrip() == 'custom_sender() {':
           buf.write(custom_sender)
           while True:
             line = cf.readline()
             if line == '':
               raise RuntimeError('Received EOF before end of custom_sender()')
-            if line.strip() == '}':
+            if line.rstrip() == '}':
               break
           continue
         buf.write(line)
