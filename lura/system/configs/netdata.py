@@ -157,11 +157,11 @@ class Package(system.Configuration):
       sys = self.system
       if not self.apply_ksm:
         return
+      commands = '\n' + '\n'.join(self._ksm) + '\n'
       rclocal = sys.loads('/etc/rc.local')
-      commands = '\n'.join(self._ksm) + '\n'
       if commands in rclocal:
         return
-      rclocal += '\n' + commands
+      rclocal += commands
       sys.dumps('/etc/rc.local', rclocal)
       +task
       if sys.loads('/sys/kernel/mm/ksm/run').strip() != '1':
@@ -198,8 +198,7 @@ class Package(system.Configuration):
       dir = f'{self.root_dir}/netdata'
       if not sys.exists(dir) or len(sys.ls(dir)) == 0:
         return
-      bin_dir = f'{self.root_dir}/netdata/usr/libexec/netdata'
-      sys(f'{bin_dir}/netdata-uninstaller.sh -y -f')
+      sys(f'{dir}/usr/libexec/netdata/netdata-uninstaller.sh -y -f')
       +task
 
   def delete_leftovers(self):
@@ -215,16 +214,13 @@ class Package(system.Configuration):
       sys = self.system
       if not (self.delete_ksm and sys.exists('/etc/rc.local')):
         return
-      rclocal = io.StringIO(sys.loads('/etc/rc.local'))
-      buf = io.StringIO()
-      for line in rclocal:
-        if line.strip() in self._ksm:
-          continue
-        buf.write(line)
-      rclocal, buf = rclocal.getvalue(), buf.getvalue()
-      if rclocal != buf:
-        sys.dumps('/etc/rc.local', buf)
-        +task
+      commands = '\n' + '\n'.join(self._ksm) + '\n'
+      rclocal = sys.loads('/etc/rc.local')
+      if commands not in rclocal:
+        return
+      rclocal = rclocal.replace(commands, '')
+      sys.dumps('/etc/rc.local', rclocal)
+      +task
       if sys.loads('/sys/kernel/mm/ksm/run').strip() == '1':
         sys.dumps('/sys/kernel/mm/ksm/run', '0\n')
         +task
@@ -274,6 +270,7 @@ class Conf(system.Configuration):
       sys = self.system
       if value is None:
         return
+      value = str(value)
       path = f'{self.root_dir}/netdata/etc/netdata/netdata.conf'
       config = ConfigParser()
       with io.StringIO(sys.loads(path)) as buf:
@@ -285,7 +282,7 @@ class Conf(system.Configuration):
       ):
         return
       config.setdefault(section, {})
-      config[section][key] = str(value)
+      config[section][key] = value
       with io.StringIO() as buf:
         config.write(buf)
         sys.dumps(path, buf.getvalue())
