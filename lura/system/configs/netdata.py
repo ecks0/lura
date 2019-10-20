@@ -144,10 +144,10 @@ class Package(system.Configuration):
   ksm_interval = 1000
   telemetry    = True
 
-  _ksm = [
+  _ksm = (
     'echo 1 >/sys/kernel/mm/ksm/run',
     'echo 1000 >/sys/kernel/mm/ksm/sleep_millisecs',
-  ]
+  )
 
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
@@ -222,7 +222,7 @@ class Package(system.Configuration):
       sys.dumps('/etc/rc.local', rclocal)
       +task
       if sys.loads('/sys/kernel/mm/ksm/run').strip() == '1':
-        sys.dumps('/sys/kernel/mm/ksm/run', '0\n')
+        sys('$SHELL -c "echo 0 >/sys/kernel/mm/ksm/run"')
         +task
 
   def on_delete_start(self):
@@ -311,8 +311,14 @@ class Healthd(system.Configuration):
 
   For example, to silence the `ram_in_use` alarm on Linux:
 
-   ('ram.conf', {'alarm': 'ram_in_use', 'os': 'linux'}, {'to': 'silent'}),
+   ('ram.conf', {'alarm': 'ram_in_use', 'os': 'linux'}, {'to': 'silent'})
   '''
+
+  # FIXME allow the selector to be a callable to which we will pass a check;
+  #       the callable would return True if the check matches, else False.
+  #       the issue is that we need to provide a way to select on field
+  #       presence, rather than field value. a user may know the field name
+  #       but they may not reliably know its value to use in a selector
 
   config_name     = 'netdata.Healthd'
   root_dir        = '/opt'
@@ -343,9 +349,14 @@ class Healthd(system.Configuration):
   def format_checks(self, checks):
     with io.StringIO() as buf:
       for check in checks:
-        field_len = max([len(k) for k in check])
+        field_len = max(len(k) for k in check)
         for (k, v) in check.items():
           if v is None:
+            # FIXME setting a field's value to None will remove the field
+            #       entirely from the check. this is undesriable because then
+            #       the field can no longer be matched by a selector. we should
+            #       see if netdata can gracefully handle empty fields so that
+            #       they don't need to be removed to be disabled
             continue
           k = '%s%s' % (' ' * (field_len - len(k)), k)
           buf.write(f'{k}: {v}\n')
@@ -369,7 +380,7 @@ class Healthd(system.Configuration):
         if all(k in check and check[k] == v for (k, v) in selector.items())
       )
       if len(selected) == 0:
-        return # XXX what to do here
+        return # FIXME what to do here
       for check in selected:
         for k in update:
           check[k] = update[k]
