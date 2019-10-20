@@ -7,11 +7,12 @@ logger = logs.get_logger(__name__)
 
 class PackageManagers:
 
-  def __init__(self, system):
+  def __init__(self, system, py_ver):
     super().__init__()
     self._system = system
     self._os = None
     self._pip = None
+    self._py_ver = py_ver
 
   def get_os(self):
     if self._os is None:
@@ -26,7 +27,7 @@ class PackageManagers:
 
   def get_pip(self):
     if self._pip is None:
-      self._pip = Python(self._system)
+      self._pip = Python(self._system, self._py_ver)
     return self._pip
 
   os = property(get_os)
@@ -131,11 +132,14 @@ class RedHat(PackageManager):
 
 class Python(PackageManager):
 
-  pythons = ('python3.7', 'python3.6', 'python3')
+  pythons = {
+    2: ('python2', 'python2.7'),
+    3: ('python3', 'python3.8', 'python3.7', 'python3.6'),
+  }
 
-  def __init__(self, system):
+  def __init__(self, system, version):
     super().__init__(system)
-    self._python = self._system.which(*self.pythons, error=True)
+    self._python = self._system.which(*self.pythons[version], error=True)
 
   def _get_installed_packages(self):
     argv = f'{self._python} -m pip list --format json'

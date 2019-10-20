@@ -94,12 +94,13 @@ class Task:
 
 class BaseConfiguration(utils.Kwargs):
 
-  config_include       = []
-  config_task_type     = Task
-  config_ready_timeout = 2.0
-  config_sync_timeout  = None
-  config_done_timeout  = None
-  config_packman_type  = packman.PackageManagers
+  config_include        = []
+  config_python_version = 3
+  config_ready_timeout  = 2.0
+  config_sync_timeout   = None
+  config_done_timeout   = None
+  config_task_type      = Task
+  config_packman_type   = packman.PackageManagers
 
   log_level = log.INFO
 
@@ -183,14 +184,14 @@ class BaseConfiguration(utils.Kwargs):
       self.coordinator = parent.coordinator
       self.args = parent.args
       self.kwargs = parent.kwargs
-      self.packages = parent.packages
     else:
       parent = None
       self.system = system
       self.coordinator = coordinator
       self.args = args
       self.kwargs = attr(kwargs)
-      self.packages = self.config_packman_type(system)
+    self.packages = self.config_packman_type(
+      self.system, py_ver=self.config_python_version)
     try:
       self._ready()
       include_res = self._run_includes(method)
