@@ -3,7 +3,7 @@ from lura import logs
 from lura.formats import json
 from shlex import quote
 
-logger = logs.get_logger(__name__)
+log = logger = logs.get_logger(__name__)
 
 class PackageManagers:
 
@@ -59,6 +59,13 @@ class PackageManager:
       packages = packages[0]
     installed = self._get_installed_packages()
     return all(_ in installed for _ in packages)
+
+  def missing(self, *packages):
+    if len(packages) == 1 and not isinstance(packages[0], str):
+      packages = packages[0]
+    installed = self._get_installed_packages()
+    missing = [_ for _ in packages if _ not in installed]
+    return missing
 
   @abstractmethod
   def install(self, *packages):

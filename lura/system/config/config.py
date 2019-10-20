@@ -426,7 +426,7 @@ class Configuration(BaseConfiguration):
     msg = 'Apply os package list update'
     os_packages = self.get_all_os_packages()
     silent = not bool(os_packages)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       if not os_packages:
         return
       if self.packages.os.installed(os_packages):
@@ -444,37 +444,37 @@ class Configuration(BaseConfiguration):
     os_package_urls = self.get_os_package_urls()
     msg = f'Apply {len(os_package_urls)} os package urls'
     silent = not bool(os_package_urls)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for pkg, url in os_package_urls:
         self.apply_os_packages(task, pkg, url)
-
-  def apply_os_package(self, task, pkg):
-    if pkg in self.packages.os:
-      return
-    self.packages.os.install(pkg)
-    +task
 
   def apply_os_packages(self):
     os_packages = self.get_os_packages()
     msg = f'Apply {len(os_packages)} os package(s)'
-    silent = not bool(os_packages)
-    with self.task(msg, log=log, silent=silent) as task:
-      for pkg in os_packages:
-        self.apply_os_package(task, pkg)
-
-  def apply_python_package(self, task, pkg):
-    if pkg in self.packages.pip:
-      return
-    self.packages.pip.install(pkg)
-    +task
+    silent = True
+    missing = []
+    if os_packages:
+      silent = False
+      missing = self.packages.os.missing(os_packages)
+    with self.task(msg, log, silent=silent) as task:
+      if not missing:
+        return
+      self.packages.os.install(missing)
+      task + len(missing)
 
   def apply_python_packages(self):
     python_packages = self.get_python_packages()
     msg = f'Apply {len(python_packages)} python package(s)'
-    silent = not bool(python_packages)
-    with self.task(msg, log=log, silent=silent) as task:
-      for pkg in python_packages:
-        self.apply_python_package(task, pkg)
+    silent = True
+    missing = []
+    if python_packages:
+      silent = False
+      missing = self.packages.pip.missing(python_packages)
+    with self.task(msg, log, silent=silent) as task:
+      if not missing:
+        return
+      self.packages.pip.install(missing)
+      task + len(missing)
 
   def apply_directory(self, task, dir):
     sys = self.system
@@ -487,7 +487,7 @@ class Configuration(BaseConfiguration):
     directories = self.get_directories()
     msg = f'Apply {len(directories)} directories'
     silent = not bool(directories)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for dir in directories:
         self.apply_directory(task, dir)
 
@@ -502,7 +502,7 @@ class Configuration(BaseConfiguration):
     files = self.get_files()
     msg = f'Apply {len(files)} files'
     silent = not bool(files)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for src, dst in files:
         self.appy_file(task, src, dst)
 
@@ -521,7 +521,7 @@ class Configuration(BaseConfiguration):
     assets = self.get_assets()
     msg = f'Apply {len(assets)} assets'
     silent = not bool(assets)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for src, dst in assets:
         self.apply_asset(task, src, dst)
 
@@ -540,7 +540,7 @@ class Configuration(BaseConfiguration):
     template_files = self.get_template_files()
     msg = f'Apply {len(template_files)} template files'
     silent = not bool(template_files)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for src, dst in template_files:
         self.apply_template_file(task, src, dst)
 
@@ -561,7 +561,7 @@ class Configuration(BaseConfiguration):
     template_assets = self.get_template_assets()
     msg = f'Apply {len(template_assets)} template assets'
     silent = not bool(template_assets)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for src, dst in template_assets:
         self.apply_template_asset(task, src, dst)
 
@@ -576,7 +576,7 @@ class Configuration(BaseConfiguration):
     symlinks = self.get_symlinks()
     msg = f'Apply {len(symlinks)} symlinks'
     silent = not bool(symlinks)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for src, dst in symlinks:
         self.apply_symlink(task, src, dst)
 
@@ -618,7 +618,7 @@ class Configuration(BaseConfiguration):
     os_packages = list(reversed(self.get_all_os_packages()))
     msg = f'Delete {len(os_packages)} os package(s)'
     silent = not bool(os_packages)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       if self.config_keep_os_packages:
         return
       for pkg in os_packages:
@@ -634,7 +634,7 @@ class Configuration(BaseConfiguration):
     python_packages = self.get_python_packages()
     msg = f'Delete {len(python_packages)} python package(s)'
     silent = not bool(python_packages)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       if self.config_keep_python_packages:
         return
       for pkg in python_packages:
@@ -651,7 +651,7 @@ class Configuration(BaseConfiguration):
     files = self.get_all_files()
     msg = f'Delete {len(files)} files'
     silent = not bool(files)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for file in files:
         self.delete_file(task, file)
 
@@ -668,7 +668,7 @@ class Configuration(BaseConfiguration):
     directories = self.get_directories()
     msg = f'Delete {len(directories)} directories'
     silent = not bool(directories)
-    with self.task(msg, log=log, silent=silent) as task:
+    with self.task(msg, log, silent=silent) as task:
       for dir in directories:
         self.delete_directory(task, dir)
 
