@@ -170,12 +170,17 @@ class Thread(threading.Thread):
 
     tid = self._thread_get_id()
     if tid is None:
-      return self.join(timeout)
+      if not self.isAlive():
+        return True
+      self.join(timeout)
+      return self.isAlive()
     if not force:
       cancel(tid)
-      return self.join(timeout)
+      self.join(timeout)
+      return self.isAlive()
     timeout = -1 if timeout is None else timeout
-    return poll(cancel, timeout=timeout, pause=self.cancel_poll_interval)
+    test = lambda: cancel(tid)
+    return poll(test, timeout=timeout, pause=self.cancel_poll_interval)
 
   def run(self):
     '''
