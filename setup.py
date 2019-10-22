@@ -9,6 +9,8 @@ description      = 'a bag of tricks'
 python_requires  = '>= 3.6'
 install_requires = open('requirements.txt').read().strip().splitlines()
 packages         = find_packages()
+console_scripts  = ['fuga=lura.system.fuga:fuga']
+entry_points     = dict(console_scripts=console_scripts)
 zip_safe         = True
 long_description = open('README.md').read()
 long_description_content_type = 'text/markdown'
@@ -23,6 +25,7 @@ setup(
   python_requires=python_requires,
   install_requires=install_requires,
   packages=packages,
+  entry_points=entry_points,
   zip_safe=zip_safe,
   long_description=long_description,
   long_description_content_type=long_description_content_type,
