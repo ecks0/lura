@@ -1,7 +1,9 @@
+import os
 import sys
 import shutil
 import tempfile
 from lura import logs
+from time import sleep
 
 log = logs.get_logger(__name__)
 
@@ -31,6 +33,19 @@ def appends(path, data, encoding=None):
   encoding = encoding or sys.getdefaultencoding()
   with open(path, 'a', encoding=encoding) as pathf:
     patf.write(data)
+
+def follow(path, interval=0.5, cond=lambda: True):
+  with open(path) as pathf:
+    buf = []
+    while cond():
+      data = pathf.readline()
+      if data == '':
+        sleep(interval)
+        continue
+      if not data.endswith(os.linesep):
+        buf.append(data)
+        continue
+      yield ''.join(buf) + data
 
 class TempDir:
 
