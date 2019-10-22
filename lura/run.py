@@ -134,6 +134,9 @@ class Run(threading.local):
   # for stdio threads
   stdio_join_timeout = 0.5
 
+  # when wait()ing on a process, return execution to python at this interval
+  interpreter_checkin_interval = 1.0
+
   def __init__(self):
     super().__init__()
     # context managers set their values here
@@ -155,7 +158,17 @@ class Run(threading.local):
       if ctx.sudo:
         ctx.sudo_helper.wait()
       threads = (Tee.spawn(proc.stdout, stdout), Tee.spawn(proc.stderr, stderr))
-      code = proc.wait()
+      # it turns out that it's sometimes beneficial to allow execution to
+      # return to the interpreter every once in a while. we poll high
+      # enough that it shouldn't matter, performance-wise. incidentally,
+      # this allows run() to be cancellable when running in a
+      # `lura.threads.Thread`.
+      while True:
+        try:
+          code = proc.wait(self.interpreter_checkin_interval)
+          break
+        except subp.TimeoutExpired:
+          continue
       for thread in threads:
         thread.join()
       proc = None
