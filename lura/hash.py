@@ -8,7 +8,7 @@ def hashs(buf, alg='sha512'):
     raise ValueError(f'Algorithm {alg} not in {algs}')
   o = getattr(hashlib, alg)()
   if isinstance(buf, str):
-    buf = buf.encode("ascii")
+    buf = buf.encode()
   o.update(buf)
   return str(o.hexdigest())
 
