@@ -17,18 +17,21 @@ class Client:
 
   def __init__(
     self, host, port=22, user=None, password=None, key_file=None,
-    passphrase=None, timeout=60.0, auth_timeout=60.0, sudo_password=None
+    private_key=None, passphrase=None, connect_timeout=60.0, auth_timeout=60.0,
+    sudo_password=None, compress=True
   ):
     # FIXME accept key data from buffer
     super().__init__()
     self._host = host
     self._port = port
     self._user = user
-    self._timeout = timeout
+    self._connect_timeout = connect_timeout
     self._conn_kwargs = {
       'key_filename': key_file,
+      'pkey': private_key,
       'passphrase': passphrase,
       'auth_timeout': auth_timeout,
+      'compress': compress,
     }
     self._sudo_password = sudo_password
     self._conn = None
@@ -52,7 +55,7 @@ class Client:
     config = fabric.Config(overrides=overrides)
     self._conn = fabric.Connection(
       host=self._host, user=self._user, port=self._port,
-      connect_timeout=self._timeout, connect_kwargs=self._conn_kwargs,
+      connect_timeout=self._connect_timeout, connect_kwargs=self._conn_kwargs,
       config=config)
     log(f'[{self._host}] Connected')
 
