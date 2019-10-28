@@ -1,5 +1,8 @@
 import os
+import subprocess
 from distutils.util import strtobool
+
+shjoin = subprocess.list2cmdline
 
 def prefix(string, prefix, linesep=os.linesep):
   'Return `string` with each line prefixed with `prefix`.'
