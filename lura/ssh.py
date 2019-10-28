@@ -5,7 +5,6 @@ import os
 import sys
 from invoke import Responder
 from lura import logs
-from lura.threads import synchronize
 from shlex import quote
 from subprocess import list2cmdline as shjoin
 
@@ -59,7 +58,6 @@ class Client:
       config=config)
     log(f'[{self._host}] Connected')
 
-  @synchronize
   def connect(self):
     if self._conn is None:
       self._connect()
@@ -80,12 +78,10 @@ class Client:
       log(f'[{self._host}] Closed')
       self._host = None
 
-  @synchronize
   def close(self):
     if self._conn is not None:
       self._close()
 
-  @synchronize
   def put(self, src, dst):
     log = logger[self.log_level]
     self.connect()
@@ -97,7 +93,6 @@ class Client:
     log(msg)
     self._conn.put(src, remote=dst)
 
-  @synchronize
   def get(self, src, dst):
     log = logger[self.log_level]
     self.connect()
@@ -109,7 +104,6 @@ class Client:
     log(msg)
     self._conn.get(src, local=dst)
 
-  @synchronize
   def run(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
@@ -127,7 +121,6 @@ class Client:
       encoding=encoding, in_stream=stdin, out_stream=stdout,
       err_stream=stderr, warn=not enforce, hide=True)
 
-  @synchronize
   def sudo(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
@@ -153,7 +146,6 @@ class Client:
       encoding=encoding, in_stream=stdin, out_stream=stdout,
       err_stream=stderr, warn=not enforce, hide=True)
 
-  @synchronize
   def forward(self, lport, rport, lhost=None):
     self.connect()
     return self._conn.forward_local(lport, rport, lhost)
