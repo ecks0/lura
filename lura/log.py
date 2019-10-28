@@ -79,6 +79,7 @@ class Logging:
   formats = attr(
     bare    = '%(message)s',
     classic = '%(asctime)s %(short_name)20s %(short_levelname)s %(message)s',
+    user    = '%(run_time)-8.3f %(short_levelname)s %(message)s',
     hax     = '%(run_time)-8.3f %(short_name)19s %(short_levelname)s %(message)s',
     runtime = '%(run_time)-12.3f %(message)s',
     verbose = '%(asctime)s %(run_time)12.3f %(name)s %(short_levelname)s %(message)s',
@@ -91,11 +92,14 @@ class Logging:
     std_logger,
     std_format = None,
     std_datefmt = None,
+    std_level = None,
   ):
     super().__init__()
     self.std_logger = std_logger
     self.std_format = std_format or self.formats.bare
     self.std_datefmt = std_datefmt or self.default_datefmt
+    if std_level is not None:
+      self.set_level(std_level)
     self.config = None
     self.configure()
 
@@ -187,8 +191,12 @@ class Logging:
     'Sets the format for all handlers of a logger.'
 
     datefmt = datefmt or self.default_datefmt
-    logger = logger or self.std_logger
+    if not logger:
+      logger = self.std_logger
+      self.std_format = format
+      self.std_datefmt = datefmt
     logger = self.get_logger(logger)
+
     formatter = MultiLineFormatter(format, datefmt)
     for handler in logger.handlers:
       handler.setFormatter(formatter)
