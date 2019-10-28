@@ -4,5 +4,6 @@ fabric >= 2.5.0
 Jinja2 >= 2.10
 ptyprocess >= 0.6.0
 PyYAML >= 3.13
+requests >= 2.21.0
 rpyc >= 4.1.1
 schedule >= 0.6.0
