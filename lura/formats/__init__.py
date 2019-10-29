@@ -1,7 +1,7 @@
-from . import csv
-from . import json
-from . import pickle
-from . import yaml
+from lura.formats import csv
+from lura.formats import json
+from lura.formats import pickle
+from lura.formats import yaml
 
 csv = csv.Format()
 json = json.Format()

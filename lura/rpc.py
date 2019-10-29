@@ -1,12 +1,12 @@
 'SSL RPC services using RPyC.'
 
+import logging
 import rpyc
-from lura import logs
 from rpyc.core.service import SlaveService
 from rpyc.utils.authenticators import SSLAuthenticator
 from rpyc.utils.server import ThreadedServer
 
-logger = logs.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 Service = SlaveService
 

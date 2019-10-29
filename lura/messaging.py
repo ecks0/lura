@@ -7,16 +7,16 @@ There's also `Messenger` class that will queue outgoing and send messages
 on a schedule as to not trigger flood protection on your webhooks.
 '''
 
+import logging
 import queue
 import requests
-from lura import logs
 from lura import threads
 from lura.attrs import attr
 from lura.formats import json
 from lura.time import poll
 from time import sleep
 
-logger = logs.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 def teams(webhook, title='', subtitle='', summary='', fields={}, timeout=20.0):
   'Send a message to MS Teams.'

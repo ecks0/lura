@@ -1,11 +1,11 @@
+import logging
 import os
 import sys
 import shutil
 import tempfile
-from lura import logs
 from time import sleep
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 def load(path):
   with open(path, 'rb') as pathf:

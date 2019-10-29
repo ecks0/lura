@@ -1,11 +1,11 @@
-from .log import Logging
+import logging
+from lura import logutils
 
-logs = Logging(
-  std_logger = __name__,
-  std_format = Logging.formats.hax,
-  std_level  = Logging.INFO,
+logutils.configure(
+  package = __name__,
+  format = logutils.formats.daemon,
+  level = logging.WARN,
 )
 
-del Logging
-
-from .run import run
+del logging
+del logutils

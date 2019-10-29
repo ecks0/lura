@@ -1,14 +1,14 @@
 'Ssh client with sudo support.'
 
 import fabric
+import logging
 import os
 import sys
 from invoke import Responder
-from lura import logs
 from shlex import quote
 from subprocess import list2cmdline as shjoin
 
-logger = logs.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class Client:
 

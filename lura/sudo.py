@@ -1,15 +1,15 @@
+import logging
 import os
 import shutil
 import subprocess as subp
 import sys
-from lura import logs
 from lura.plates import jinja2
 from lura.time import Timer
 from shlex import quote
 from tempfile import mkdtemp
 from time import sleep
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 shjoin = subp.list2cmdline
 

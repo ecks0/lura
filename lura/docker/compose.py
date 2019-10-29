@@ -1,6 +1,7 @@
-from lura import logs
+import logging
 from lura.run import run
-log = logs.get_logger(__name__)
+
+log = logging.getLogger(__name__)
 
 def convert_opts(opts):
   def convert_opt(name, value):

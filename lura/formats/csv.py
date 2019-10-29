@@ -4,13 +4,10 @@ import os
 import sys
 from collections.abc import MutableMapping
 from io import StringIO
-from lura import logs
 from lura.attrs import attr, ottr
 from lura.formats import base
 
 # FIXME support restkey/restval
-
-log = logs.get_logger(__name__)
 
 class Format(base.Format):
   '''

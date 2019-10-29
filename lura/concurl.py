@@ -1,3 +1,4 @@
+import logging
 import os
 import requests
 import statistics as stats
@@ -7,12 +8,11 @@ import traceback
 from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
-from lura import logs
 from lura.formats import yaml
 from lura.attrs import attr, ottr
 from multiprocessing import pool
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 def common(data, count=None):
   'Return the count most common values found in list data.'
@@ -185,7 +185,6 @@ class ConCurl:
       action = request.type.lower()
       call = getattr(requests, action)
       args, kwargs = self.build_request_call_args(request)
-      log.noise(f'request() {action}(*{args} **{kwargs})')
       response = call(*args, **kwargs)
       end = time.time()
       headers = dict(response.headers)

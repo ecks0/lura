@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import shlex
 import subprocess as subp
@@ -8,7 +9,6 @@ from collections import MutableSequence
 from contextlib import contextmanager
 from deepmerge import always_merger
 from lura import formats
-from lura import logs
 from lura import threads
 from lura.attrs import attr
 from lura.attrs import ottr
@@ -17,7 +17,7 @@ from lura.sudo import shell_path
 from lura.utils import deepcopy
 from types import GeneratorType
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 merge = always_merger.merge
 shjoin = subp.list2cmdline

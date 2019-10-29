@@ -1,12 +1,12 @@
 'Periodic task scheduler.'
 
+import logging
 import schedule
 from abc import abstractmethod
-from lura import logs
 from lura import threads
 from time import sleep
 
-logger = logs.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class Task(threads.Thread):
   '''

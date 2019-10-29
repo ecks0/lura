@@ -1,13 +1,13 @@
 import ctypes
 import inspect
+import logging
 import sys
 import threading
-from lura import logs
 from lura.attrs import attr
 from lura.time import poll
 from time import sleep
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 class Synchronize:
   '''

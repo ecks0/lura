@@ -1,13 +1,13 @@
 import io
+import logging
 import os
 from abc import abstractmethod
 from lura import fs
-from lura import logs
-from lura import run
 from lura.formats import json
+from lura.run import run
 from lura.time import poll
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 def convert_opts(opts):
   def convert_opt(name, value):
@@ -20,7 +20,6 @@ def convert_opts(opts):
   return [convert_opt(name, value) for name, value in opts.items()]
 
 def kubectl(cmd, args=[], opts={}, cwd=None, enforce=True):
-  log.noise(f"kubectl({cmd}, {args}, {opts}, {cwd}, {enforce}")
   argv = [kubectl.bin, cmd]
   argv.extend(args)
   argv.extend(convert_opts(opts))

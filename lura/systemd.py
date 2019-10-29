@@ -1,7 +1,7 @@
-from lura import logs
+import logging
 from lura.run import run
 
-log = logs.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 def convert_opts(opts):
   def convert_opt(name, value):
@@ -20,7 +20,6 @@ def convert_opts(opts):
   ]
 
 def systemctl(cmd, args, opts, enforce=True, log_level=None):
-  log.noise(f'systemctl({cmd}, {args}, {opts})')
   argv = [systemctl.bin, cmd]
   argv.extend(args)
   argv.extend(convert_opts(opts))
@@ -32,7 +31,6 @@ systemctl.bin = 'systemctl'
 systemctl.log_level = log.DEBUG
 
 def journalctl(args, opts, log_level=None):
-  log.noise(f'journalctl({args}, {opts})')
   argv = [journalctl.bin]
   argv.extend(args)
   argv.extend(convert_opts(opts))
