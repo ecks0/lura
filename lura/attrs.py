@@ -176,9 +176,11 @@ class AttributesWrapper:
 attr = Attributes
 dattr = DefaultAttributes
 rattr = RecursiveAttributes
+defaultattr = DefaultAttributes
 
 ottr = OrderedAttributes
 dottr = DefaultOrderedAttributes
 rottr = RecursiveOrderedAttributes
+defaultottr = DefaultOrderedAttributes
 
 wttr = AttributesWrapper
