@@ -2,7 +2,7 @@
 
 | Module           | Description                                                                |
 | ---------------- | -------------------------------------------------------------------------- |
-| `assets`         | syntactic sugar for `pkg_resources`                                        |
+| `asset`          | syntactic sugar for `pkg_resources`                                        |
 | `at`             | api for periodic task scheduling using `schedule`                          |
 | `attrs`          | `dict`s with keys accessible as attributes                                 |
 | `concurl`        | framework for http testers and stressers                                   |
