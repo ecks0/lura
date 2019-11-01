@@ -138,6 +138,7 @@ class Client:
       argv.append('-i')
     if user:
       argv.extend(('-u', user))
+    argv.append('--')
     argv.append(user_argv)
     argv = ' '.join(argv)
     log(f'[{self._host}] sudo: {argv}')
