@@ -10,6 +10,23 @@ from io import StringIO
 from lura.attrs import attr
 
 #####
+## handy values
+
+# log format presets (these depend on ExtraInfoFilter)
+formats = attr(
+  bare    = '%(message)s',
+  runtime = '%(x_runtime)-12.3f %(message)s',
+  user    = '%(x_runtime)-8.3f %(x_char)s %(message)s',
+  hax     = '%(x_runtime)-8.3f %(x_modules)20s %(x_char)s %(message)s',
+  daemon  = '%(asctime)s %(x_module)10s %(x_char)s %(message)s',
+  verbose = '%(asctime)s %(x_runtime)12.3f %(name)s %(x_char)s %(message)s',
+)
+
+logging.formats = formats
+
+default_datefmt = '%Y-%m-%d %H:%M:%S'
+
+#####
 ## utility classes
 
 class ExtraInfoFilter(logging.Filter):
@@ -105,21 +122,6 @@ for level, name in logging._levelToName.items():
   setattr(Logger, name, level)
 
 logging.setLoggerClass(Logger)
-
-#####
-## handy values
-
-# log format presets (these depend on ExtraInfoFilter)
-formats = attr(
-  bare    = '%(message)s',
-  runtime = '%(x_runtime)-12.3f %(message)s',
-  user    = '%(x_runtime)-8.3f %(x_char)s %(message)s',
-  hax     = '%(x_runtime)-8.3f %(x_modules)20s %(x_char)s %(message)s',
-  daemon  = '%(asctime)s %(x_module)10s %(x_char)s %(message)s',
-  verbose = '%(asctime)s %(x_runtime)12.3f %(name)s %(x_char)s %(message)s',
-)
-
-default_datefmt = '%Y-%m-%d %H:%M:%S'
 
 #####
 ## utilities
