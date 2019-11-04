@@ -14,10 +14,20 @@ class Client:
 
   log_level = logger.DEBUG
 
+  _default_path = ':'.join((
+    '/bin',
+    '/usr/bin',
+    '/usr/local/bin',
+    '/sbin',
+    '/usr/sbin',
+    '/usr/local/sbin',
+    '/usr/libexec/'
+  ))
+
   def __init__(
     self, host, port=22, user=None, password=None, key_file=None,
     private_key=None, passphrase=None, connect_timeout=60.0, auth_timeout=60.0,
-    sudo_password=None, compress=True
+    sudo_password=None, compress=True, path=None
   ):
     # FIXME accept key data from buffer
     super().__init__()
@@ -34,6 +44,7 @@ class Client:
     }
     self._sudo_password = sudo_password
     self._conn = None
+    self._path = path if path else self._default_path
 
   def __del__(self):
     self.close()
@@ -104,6 +115,16 @@ class Client:
     log(msg)
     self._conn.get(src, local=dst)
 
+  def _argv(self, argv, cwd):
+    if not isinstance(argv, str):
+      argv = shjoin(argv)
+    user_argv = argv
+    argv = [f'export PATH={self._path}; ']
+    if cwd:
+      argv.append(f'cd {quote(cwd)} && ')
+    argv.append(user_argv)
+    return f"bash -c {quote(''.join(argv))}"
+
   def run(
     self, argv, shell=False, pty=False, env={}, replace_env=False,
     encoding=None, stdin=None, stdout=None, stderr=None, enforce=True,
@@ -111,10 +132,7 @@ class Client:
   ):
     log = logger[self.log_level]
     self.connect()
-    if not isinstance(argv, str):
-      argv = shjoin(argv)
-    if cwd:
-      argv = f'bash -c cd\ {quote(cwd)}\ \&\&\ {quote(argv)}'
+    argv = self._argv(argv, cwd)
     log(f'[{self._host}] run: {argv}')
     return self._conn.run(
       argv, shell=shell, pty=pty, env=env, replace_env=replace_env,
@@ -128,16 +146,12 @@ class Client:
   ):
     log = logger[self.log_level]
     self.connect()
-    if not isinstance(argv, str):
-      argv = shjoin(argv)
-    if cwd:
-      argv = f'bash -c cd\ {quote(cwd)}\ \&\&\ {quote(argv)}'
-    user_argv = argv
+    user_argv = self._argv(argv, cwd)
     argv = ['sudo']
     if login:
       argv.append('-i')
     if user:
-      argv.extend(('-u', user))
+      argv.extend('-u', user)
     argv.append('--')
     argv.append(user_argv)
     argv = ' '.join(argv)
