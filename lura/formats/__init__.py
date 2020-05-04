@@ -1,30 +1,60 @@
-from lura.formats import csv
-from lura.formats import json
-from lura.formats import pickle
-from lura.formats import yaml
+from typing import Any, Optional, TextIO
+from typing_extensions import Protocol
 
-csv = csv.Format()
-json = json.Format()
-pickle = pickle.Format()
-yaml = yaml.Format()
+class Format(Protocol):
+  'API implemented by format implementations.'
 
-exts = dict(
-  csv = csv,
-  jsn = json,
-  json = json,
-  pickle = pickle,
-  pckl = pickle,
-  yaml = yaml,
-  yml = yaml,
-)
+  def loads(
+    self,
+    data: str,
+    **kwargs: Any
+  ) -> Any:
+  
+    ...
 
-def for_ext(ext):
-  if ext not in exts:
-    raise ValueError(f'No format for file extension: {ext}')
-  return exts[ext]
+  def loadf(
+    self,
+    path: str,
+    encoding: Optional[str] = None,
+    **kwargs: Any
+  ) -> Any:
+  
+    ...
 
-def for_path(path):
-  ext = path.rsplit('.', 1)[-1]
-  if ext not in exts:
-    raise ValueError(f'No format for file extension: {path}')
-  return exts[ext]
+  def loadfd(
+    self,
+    fd: TextIO,
+    **kwargs: Any
+  ) -> Any:
+  
+    ...
+
+  def dumps(
+    self,
+    data: Any,
+    **kwargs: Any,
+  ) -> str:
+    
+    ...
+
+  def dumpf(
+    self,
+    path: str,
+    data: Any,
+    encoding: Optional[str] = None,
+    **kwargs: Any
+  ) -> None:
+  
+    ...
+
+  def dumpfd(
+    self,
+    fd: TextIO,
+    data: Any,
+    **kwargs: Any
+  ) -> None:
+  
+    ...
+
+from .json import Json
+from .pyaml import Pyaml

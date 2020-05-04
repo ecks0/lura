@@ -4,8 +4,6 @@ def always(value=None):
   while True:
     yield value
 
-forever = always
-
 class BufferedIterator:
   '''
   Iterator wrapper that buffers next() and provides the methods:

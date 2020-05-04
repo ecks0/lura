@@ -1,9 +1,7 @@
 cryptography >= 2.7
 deepmerge >= 0.1.0
-fabric >= 2.5.0
-Jinja2 >= 2.10
-ptyprocess >= 0.6.0
 PyYAML >= 3.13
+pyaml >= 20.4.0
 requests >= 2.21.0
 rpyc >= 4.1.1
 schedule >= 0.6.0

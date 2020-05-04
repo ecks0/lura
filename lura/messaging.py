@@ -10,32 +10,39 @@ on a schedule as to not trigger flood protection on your webhooks.
 import logging
 import queue
 import requests
-from lura import threads
 from lura.attrs import attr
-from lura.formats import json
+from lura.formats import Json
 from lura.time import poll
 from time import sleep
+from typing import Mapping, Optional, Sequence, cast
 
 logger = logging.getLogger(__name__)
 
-def teams(webhook, title='', subtitle='', summary='', fields={}, timeout=20.0):
+def teams(
+  webhook: str,
+  title: Optional[str] = None,
+  subtitle: Optional[str] = None,
+  summary: Optional[str] = None,
+  fields: Mapping[str, str] = {},
+  timeout: float = 20.0
+) -> Optional[requests.Response]:
   'Send a message to MS Teams.'
 
   payload = {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
-    'summary': summary, # XXX what does this actually do?
+    'summary': summary or '', # XXX what does this actually do?
     'sections': [
       {
-        'activityTitle': title,
-        'activitySubtitle': subtitle,
+        'activityTitle': title or '',
+        'activitySubtitle': subtitle or '',
         'facts': [{'name': n, 'value': v} for (n, v) in fields.items()]
       }
     ]
   }
   headers = {'Content-Type': 'application/json'}
   res = requests.post(
-    webhook, headers=headers, data=json.dumps(payload), timeout=timeout)
+    webhook, headers=headers, data=Json().dumps(payload), timeout=timeout)
   try:
     res.raise_for_status()
     return None
@@ -43,8 +50,13 @@ def teams(webhook, title='', subtitle='', summary='', fields={}, timeout=20.0):
     return res
 
 def discord(
-  webhook, title=None, subtitle=None, summary=None, fields={}, timeout=20.0
-):
+  webhook: str,
+  title: Optional[str] = None,
+  subtitle: Optional[str] = None,
+  summary: Optional[str] = None,
+  fields: Mapping[str, str] = {},
+  timeout: float = 20.0,
+) -> Optional[requests.Response]:
   'Send a message to Discord.'
 
   embed = attr()
@@ -60,7 +72,7 @@ def discord(
   payload = {'embeds': [embed]}
   headers = {'Content-Type': 'application/json'}
   res = requests.post(
-    webhook, headers=headers, data=json.dumps(payload), timeout=timeout)
+    webhook, headers=headers, data=Json().dumps(payload), timeout=timeout)
   try:
     res.raise_for_status()
     return None
@@ -69,19 +81,25 @@ def discord(
 
 class Messenger:
   '''
-  This class queues messages for teams and discord and sends them a regular
-  interval so as to not trigger flood protection. Create an instance and call
-  `start()` to execute the main loop.
+  Queues messages for teams and discord and sends them a regular interval so
+  as to not trigger flood protection.
+  
+  Create an instance and call `start()` to execute the main loop.
   '''
 
-  log_level = logger.INFO
+  log_level = logging.INFO
 
   _senders = {'teams': teams, 'discord': discord}
 
   # how long will we block in queue.get() before giving up
   _queue_get_timeout = 5
 
-  def __init__(self, teams_webhook=None, discord_webhook=None, pulse=4.0):
+  def __init__(
+    self,
+    teams_webhook: Optional[Sequence[str]] = None,
+    discord_webhook: Optional[Sequence[str]] = None,
+    pulse: float = 4.0
+  ) -> None:
     super().__init__()
     self._webhooks = {
       'teams': teams_webhook,
@@ -105,7 +123,7 @@ class Messenger:
   def _send(self, kwargs):
     'Send the message with all configured services.'
 
-    log = logger[self.log_level]
+    log = logger[self.log_level] # type: ignore
     sent = False
     for service in 'teams', 'discord':
       webhook = self._webhooks[service]
@@ -143,7 +161,7 @@ class Messenger:
   def run(self):
     'Main entry point for the messaging work loop.'
 
-    log = logger[self.log_level]
+    log = logger[self.log_level] # type: ignore
     self._working = True
     log('Messenger starting')
     try:

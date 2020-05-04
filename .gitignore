@@ -3,3 +3,6 @@ __pycache__
 *.egg-info
 tmp
 publish.sh
+.mypy_cache
+.pytype
+

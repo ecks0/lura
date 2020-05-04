@@ -1,16 +1,50 @@
+'''
+Logging helper utilities.
+
+Features:
+
+- A filter to provide additional log message formatting fields.
+
+- Pre-defined log formats using additional log message formatting fields.
+
+- Helpers to retrieve log levels by name or by number.
+
+- Helper to add new log levels.
+
+- Package-level configurator with reasonable defaults.
+
+- Custom Logger implementation
+
+  - Each line of a multi-line log message is itself treated as an independent
+    log message.
+
+  - Exceptions are sent through formatters rather than being printed bare.
+
+  - setConsoleFormat() method to set log formats for all stream handlers
+    writing to stdout or stderr.
+  
+  - Log level constants are set on the class.
+'''
+
 import logging
 import logging.config
 import os
 import sys
 import time
 import traceback
-import yaml
+import yaml as pyyaml
 from collections import defaultdict
 from io import StringIO
 from lura.attrs import attr
+from types import TracebackType
+from typing import (
+  Any, Callable, Dict, Mapping, MutableMapping, Optional, Tuple, Type, Union
+)
 
 #####
 ## handy values
+
+ExcInfo = Union[Tuple[Type[BaseException], BaseException, TracebackType], Tuple[None, None, None]]
 
 # log format presets (these depend on ExtraInfoFilter)
 formats = attr(
@@ -22,7 +56,7 @@ formats = attr(
   verbose = '%(asctime)s %(x_runtime)12.3f %(name)s %(x_char)s %(message)s',
 )
 
-logging.formats = formats
+logging.formats = formats # type: ignore
 
 default_datefmt = '%Y-%m-%d %H:%M:%S'
 
@@ -41,8 +75,8 @@ class ExtraInfoFilter(logging.Filter):
 
   initialized = time.time()
   default_char = ' '
-  name_to_char = defaultdict(
-    lambda: default_char,
+  name_to_char: MutableMapping[int, str] = defaultdict(
+    lambda: default_char, # type: ignore
     DEBUG    = '+',
     INFO     = '|',
     WARNING  = '>',
@@ -50,12 +84,12 @@ class ExtraInfoFilter(logging.Filter):
     CRITICAL = '!',
   )
 
-  def filter(self, record):
+  def filter(self, record: logging.LogRecord) -> bool:
     modules = record.name.split('.')
-    record.x_modules = '.'.join(modules[-2:])
-    record.x_module = modules[-1]
-    record.x_char = self.name_to_char.get(record.levelname)
-    record.x_runtime = time.time() - self.initialized
+    record.x_modules = '.'.join(modules[-2:]) # type: ignore
+    record.x_module = modules[-1] # type: ignore
+    record.x_char = self.name_to_char.get(record.levelname) # type: ignore
+    record.x_runtime = time.time() - self.initialized # type: ignore
     return True
 
 class MultiLineFormatter(logging.Formatter):
@@ -64,7 +98,7 @@ class MultiLineFormatter(logging.Formatter):
   message.
   '''
 
-  def format(self, record):
+  def format(self, record: logging.LogRecord) -> str:
     if not isinstance(record.msg, str) or os.linesep not in record.msg:
       record.message = super().format(record)
       return record.message
@@ -77,26 +111,28 @@ class MultiLineFormatter(logging.Formatter):
     record.msg = msg
     return record.message
 
-class Logger(logging.getLoggerClass()):
+class Logger(logging.getLoggerClass()): # type: ignore
   '''
   Logger subclass with the following changes:
 
   - __getitem__(log_level) -> callable log method for log_level
+
   - setConsoleFormat(format, datefmt) will set the format for any stream
     handler writing to stdout or stderr
+
   - log level constants are set on the class, and will be updated by
     logutils.add_level()
-  - exceptions are sent through formatters rather than being printed
-    bare
+
+  - exceptions are sent through formatters rather than printed bare
   '''
 
-  def __getitem__(self, level):
+  def __getitem__(self, level: int) -> Callable:
     'Return the log method for the given log level number.'
 
     name = logging._levelToName[level].lower()
     return getattr(self, name)
 
-  def setConsoleFormat(self, format, datefmt=None):
+  def setConsoleFormat(self, format: str, datefmt: Optional[str] = None) -> None:
     'Set the output format on any handler for stdout or stderr.'
 
     datefmt = datefmt or default_datefmt
@@ -106,7 +142,14 @@ class Logger(logging.getLoggerClass()):
       if hasattr(handler, 'stream') and handler.stream in std:
         handler.setFormatter(formatter)
 
-  def _log(self, level, msg, *args, exc_info=None, **kwargs):
+  def _log(
+    self,
+    level: int,
+    msg: str,
+    *args: Any,
+    exc_info: Optional[ExcInfo] = None,
+    **kwargs: Any
+  ) -> None:
     if exc_info:
       if isinstance(exc_info, BaseException):
         exc_info = (type(exc_info), exc_info, exc_info.__traceback__)
@@ -126,26 +169,34 @@ logging.setLoggerClass(Logger)
 #####
 ## utilities
 
-def number_for_name(name):
+def number_for_name(name: str) -> int:
   return logging._nameToLevel[name]
 
-def name_for_number(number):
+def name_for_number(number: int) -> str:
   return logging._levelToName[number]
 
-def build_log_method(number):
-  def log_level(self, *args, **kwargs):
-    if self.isEnabledFor(number):
-      self._log(number, msg, args, **kwargs)
-  return log_level
+def build_log_method(number) -> Callable:
+  '''
+  Build a log method for a log level to be dynamically added to
+  logutils.Logger.
+  '''
 
-def add_level(self, name, number, char=None):
+  def log_method(self, *args: Any, **kwargs: Any):
+    if self.isEnabledFor(number):
+      self._log(*args, **kwargs)
+  return log_method
+
+def add_level(name: str, number: int, char: str = None) -> None:
   '''
   Add a log level.
 
   - Sets the attribute `name` to `number` on module `logging`
+
   - Sets the attribute `name` to `number` on type `logging.Logging`
+
   - Creates a log method for the level and sets it on `logging.Logging` as
     attribute `name.lower()`
+
   - Sets `char` for `name` on `ExtraInfoFilter` when provided
   '''
 
@@ -164,41 +215,47 @@ def add_level(self, name, number, char=None):
     ExtraInfoFilter.name_to_char[name] = char
 
 #####
-## logging configurator
+## application-level configurator
+
+def yaml(string: str):
+  return pyyaml.safe_load(string)
 
 class Configurator:
   '''
-  Build and apply a dictConfig using features of `lura.logutils`.
+  Build and apply a logging dictConfig using features of logutils.
 
   - Creates a filter `extra_info` as `ExtraInfoFilter`
+
   - Creates a formatter `multiline` as `MultiLineFormatter` using `format`
     and `datefmt`
+
   - Creates a handler 'stderr` as `StreamHandler` for `sys.stderr` using the
     `extra_info` filter and the `multiline` formatter
+
   - Sets the `level` and `stderr` handler for a package's root logger
   '''
 
-  def __init__(self, package, format, datefmt, level=logging.INFO):
+  package: str
+  format: str
+  datefmt: str
+  level: int
+
+  def __init__(self, package: str, format: str, datefmt: str, level: int = logging.INFO):
     super().__init__()
     self.package = package
     self.format = format
     self.datefmt = datefmt or default_datefmt
     self.level = level
 
-  def yaml(self, str):
-    return yaml.safe_load(str)
-
   @property
-  def filters(self):
-    filters = self.yaml('''
-      extra_info: {}
-    ''')
+  def filters(self) -> Dict[str, Any]:
+    filters = yaml('extra_info: {}')
     filters['extra_info']['()'] = ExtraInfoFilter
     return filters
 
   @property
-  def formatters(self):
-    formatters = self.yaml(f'''
+  def formatters(self) -> Dict[str, Any]:
+    formatters = yaml(f'''
       multiline:
         format: '{self.format}'
         datefmt: '{self.datefmt}'
@@ -207,8 +264,8 @@ class Configurator:
     return formatters
 
   @property
-  def handlers(self):
-    return self.yaml('''
+  def handlers(self) -> Dict[str, Any]:
+    return yaml('''
       stderr:
         class: logging.StreamHandler
         stream: ext://sys.stderr
@@ -217,16 +274,16 @@ class Configurator:
     ''')
 
   @property
-  def loggers(self):
-    return self.yaml(f'''
+  def loggers(self) -> Dict[str, Any]:
+    return yaml(f'''
       {self.package}:
         handlers: [stderr]
         level: {name_for_number(self.level)}
     ''')
 
   @property
-  def config(self):
-    config = self.yaml('''
+  def config(self) -> Dict[str, Any]:
+    config = yaml('''
       version: 1
       disable_existing_loggers: false
     ''')
@@ -236,8 +293,8 @@ class Configurator:
     config['loggers'] = self.loggers
     return config
 
-  def configure(self):
+  def configure(self) -> None:
     logging.config.dictConfig(self.config)
 
-def configure(package, format, datefmt=None, level=logging.INFO):
+def configure(package: str, format: str, datefmt: str = None, level: int = logging.INFO):
   Configurator(package, format, datefmt, level=level).configure()

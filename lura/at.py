@@ -1,144 +1,195 @@
-'Periodic task scheduler.'
+'''
+Periodic task scheduler.
+
+Usage examples:
+
+```
+from lura import at
+
+def cycle_log_files() -> None:
+  print('Cycling log files')
+  # ... etc
+
+def stash_log_files() -> None:
+  print('Stashing log files')
+  # ... etc
+
+scheduler = at.Scheduler()
+scheduler.schedule(at.every().day.at('00:15'), cycle_log_files)
+scheduler.schedule(at.every().day.at('00:30'), stash_log_files)
+scheduler.start()
+```
+'''
+
+# the `schedule` module from pypi does the hard work for us. the at module:
+#
+# - provides a main loop which tries to keep the scheduler running in spite of
+#   unhandled exceptions
+# - ensures that scheduled tasks run in threads so that one task will not block others
+# - optionally ensures that only one invocation of a task may be running at a time
 
 import logging
-import schedule
-from abc import abstractmethod
-from lura import threads
+import schedule as pyschedule # type: ignore
+import threading
+from lura.threads import Thread
 from time import sleep
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
+from typing_extensions import Protocol
 
 logger = logging.getLogger(__name__)
 
-class Task(threads.Thread):
-  '''
-  This is a base class for scheduled tasks, which are ephemeral threads
-  spawned at the appropriate time and then discarded by the `Scheduler`.
+def every() -> pyschedule.Job:
+  return pyschedule.every()
 
-  Subclasses shall implement `work()` to perform the scheduled task.
-  '''
+class Task(Protocol):
+  'Task protocol for use with `Scheduler`.'
 
-  log_level = logger.INFO
+  def __init__(
+    self,
+    target: Callable,
+    args: Optional[Sequence[Any]],
+    kwargs: Optional[Mapping[Any, Any]],
+    reenter: bool,
+  ) -> None:
+    ...
 
-  def __init__(self, scheduler, *args, **kwargs):
-    for _ in kwargs:
-      # don't allow these to be forwarded to the Thread ctor
-      assert(_ not in ('target', 'args', 'kwargs'))
-    super().__init__(*args, **kwargs)
-    self._scheduler = scheduler
+  @property
+  def name(self) -> str:
+    return ''
 
-  def _on_error(self):
-    '''
-    This will be called from inside an `except` block (so you can call
-    `sys.exc_info()`) when unhandled exceptions are encountered.
-    '''
+  def run(self) -> None:
+    ...
 
-    pass
+class _Task:
+  'Run a scheduled task in a thread.'
 
-  @abstractmethod
-  def work(self):
-    pass
+  _target: Callable
+  _args: Sequence[Any]
+  _kwargs: Mapping[str, Any]
+  _lock: Optional[threading.Lock]
+  _name: str
 
-  def run(self):
-    log = logger[self.log_level]
+  def __init__(
+    self,
+    target: Callable,
+    args: Optional[Sequence[Any]],
+    kwargs: Optional[Mapping[Any, Any]],
+    reenter: bool,
+  ) -> None:
+
+    super().__init__()
+    self._target = target
+    self._args = []
+    if args is not None:
+      self._args.extend(args)
+    self._kwargs = {}
+    if kwargs is not None:
+      self._kwargs.update(kwargs)
+    self._lock = None
+    if not reenter:
+      # - a task is reentrant when a new invocation of the task may be started
+      #   before a previous invocation has finished
+      # - a task is not reentrant when only one invocation of the task may
+      #   run at a time
+      self._lock = threading.Lock
+    self._name = f'{self._target.__module__}.{self._target.__name__}'
+
+  @property
+  def name(self) -> str:
+    return self._name
+
+  def run(self) -> None:
+    cls_name = f'{type(self).__module__}.{type(self).__name__}'
+    Thread.spawn(target=self._work, name=f'{cls_name} <{self.name}>')
+
+  def _work(self) -> None:
+    log = logger[self.log_level] # type: ignore
+    if self._lock:
+      if not self._lock.acquire(blocking=False):
+        log(f"Scheduled task is already running, not starting: {self.name}")
+        return
     try:
-      log(f'{type(self).__name__} starting')
-      self.work()
+      log(f'Starting scheduled task: {self.name}')
+      self._target(*self._args, **self._kwargs)
     except Exception:
-      log(f'Unhandled exception in {type(self).__name__}', exc_info=True)
-      self._on_error()
+      log(f'Unhandled exception in scheduled task: {self.name}', exc_info=True)
     finally:
-      log(f'{type(self).__name__} stopping')
+      if self._lock:
+        self._lock.release()
+      log(f'Finished scheduled task: {self.name}')
 
 class Scheduler:
-  '''
-  Periodic task scheduler implemented using the `schedule` package.
+  'Periodic task scheduler.'
 
-  Pass the constructor a `schedule`, which is a list of pairs:
+  log_level = logging.INFO
+  task_cls: Type[Task] = _Task
 
-  `[(schedule.Job, lura.at.Task), ...]`
+  _working: bool
 
-  Example:
-  ```
-  import schedule
-  from lura import at
-
-  class CycleLogFiles(at.Task): pass
-  class StashLogFIles(at.Task): pass
-
-  sched = [
-    (schedule.every().day.at('00:15'), CycleLogFiles),
-    (schedule.every().day.at('00:30'), StashLogFiles),
-  ]
-
-  scheduler = at.Scheduler(sched)
-  scheduler.start()
-  ```
-  '''
-
-  log_level = logger.INFO
-
-  def __init__(self, schedule):
+  def __init__(self) -> None:
     super().__init__()
-    self._schedule = schedule
-    self._applied = False
     self._working = False
 
-  def _on_error(self):
-    '''
-    This will be called from inside an `except` block (so you can call
-    `sys.exc_info()`) when unhandled exceptions are encountered.
-    '''
+  def _format_task(self, job: pyschedule.Job, task: Task) -> str:
+    'Return a string describing a job and task.'
 
-    pass
-
-  def _format_task(self, job, task):
     if job.at_time is not None:
       return '%s every %s %s at %s' % (
-        task.__name__,
+        task.name,
         job.interval,
         job.unit[:-1] if job.interval == 1 else job.unit,
         job.at_time,
       )
     else:
       fmt = (
-        '%(task)s every %(interval)s ' +
+        '%(name)s every %(interval)s ' +
         'to %(latest)s ' if job.latest is not None else '' +
         '%(unit)s'
       )
       return fmt % dict(
-        task = task.__name__,
+        name = task.name,
         interval = job.interval,
         latest = job.latest,
         unit = job.unit[:-1] if job.interval == 1 else job.unit,
       )
 
-  def _apply_schedule(self):
-    log = logger[self.log_level]
-    if self._applied:
-      log('Asked to apply schedule when already applied')
-      return
-    for job, task in self._schedule:
-      job.do(task.spawn, self)
-      log('Scheduled ' + self._format_task(job, task))
-    self._applied = True
+  def _work(self) -> None:
+    'Scheduler main loop.'
 
-  def run(self):
+    if self._working:
+      raise RuntimeError('Already working')
     self._working = True
-    log = logger[self.log_level]
+    log = logger[self.log_level] # type: ignore
     log('Task scheduler starting')
-    self._apply_schedule()
     try:
-      import schedule
       while self._working:
-        schedule.run_pending()
-        sleep(1)
-    except Exception:
-      log('Unhanlded exception in task scheduler', exc_info=True)
-      self._on_error()
-      raise
+        try:
+          pyschedule.run_pending()
+        except Exception:
+          log('Unhanlded exception in task scheduler', exc_info=True)
+        finally:
+          sleep(1)
     finally:
-      log('Task scheduler stopping')
+      self._working = False
+      log('Task scheduler stopped')
 
-  start = run
+  def start(self) -> None:
+    self._work()
 
-  def stop(self):
+  def stop(self) -> None:
     self._working = False
+
+  def schedule(
+    self,
+    job: pyschedule.Job, 
+    target: Callable,
+    args: Optional[Sequence[Any]] = None,
+    kwargs: Optional[Mapping[str, Any]] = None,
+    reenter: bool = True,
+  ) -> None:
+    'Schedule a task.'
+
+    task = self.task_cls(target=target, args=args, kwargs=kwargs, reenter=reenter)
+    log = logger[self.log_level] # type: ignore
+    log(f'Scheduling {self._format_task(job, task)}')
+    job.do(task.run)

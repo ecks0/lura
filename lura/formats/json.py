@@ -1,9 +1,7 @@
-import json
-from io import StringIO
-from lura.attrs import ottr
-from lura.formats import base
+import json as pyjson
+from typing import Any, Callable, Optional, TextIO
 
-class Encoder(json.JSONEncoder):
+class Encoder(pyjson.JSONEncoder):
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -16,39 +14,66 @@ class Encoder(json.JSONEncoder):
     else:
       return repr(item)
 
-class Format(base.Format):
-  '''
-  This class loads json using ordered dictionaries, and `repr()`s unsupported
-  types on dump rather than raising.
-  '''
+class Json:
+  'Json format.'
 
-  object_pairs_hook = ottr
+  object_pairs_hook: Callable = dict
 
-  def __init__(self):
-    super().__init__()
+  def loads(
+    self,
+    data: str,
+    **kwargs: Any
+  ) -> Any:
 
-  def loads(self, data, **kwargs):
     kwargs.setdefault('object_pairs_hook', self.object_pairs_hook)
-    return json.loads(data, **kwargs)
+    return pyjson.loads(data, **kwargs)
 
-  def loadf(self, src, encoding=None, **kwargs):
-    with open(src, encoding=encoding) as fd:
+  def loadf(
+    self,
+    path: str,
+    encoding: Optional[str] = None,
+    **kwargs: Any
+  ) -> Any:
+
+    with open(path, encoding=encoding) as fd:
       return self.loadfd(fd, **kwargs)
 
-  def loadfd(self, fd, **kwargs):
+  def loadfd(
+    self,
+    fd: TextIO,
+    **kwargs: Any
+  ) -> Any:
+
     kwargs.setdefault('object_pairs_hook', self.object_pairs_hook)
-    return json.load(fd, **kwargs)
+    return pyjson.load(fd, **kwargs)
 
-  def dumps(self, data, **kwargs):
+  def dumps(
+    self,
+    data: Any,
+    **kwargs: Any,
+  ) -> str:
+    
     kwargs.setdefault('cls', Encoder)
-    return json.dumps(data, **kwargs)
+    return pyjson.dumps(data, **kwargs)
 
-  def dumpf(self, data, dst, encoding=None, **kwargs):
-    with open(dst, 'w', encoding=encoding) as fd:
-      self.dumpfd(data, fd, **kwargs)
+  def dumpf(
+    self,
+    path: str,
+    data: Any,
+    encoding: Optional[str] = None,
+    **kwargs: Any
+  ) -> None:
+  
+    with open(path, 'w', encoding=encoding) as fd:
+      self.dumpfd(fd, data, **kwargs)
 
-  def dumpfd(self, data, fd, **kwargs):
+  def dumpfd(
+    self,
+    fd: TextIO,
+    data: Any,
+    **kwargs: Any
+  ) -> None:
+  
     kwargs.setdefault('cls', Encoder)
-    json.dump(data, fd, **kwargs)
-    if hasattr(fd, 'flush') and callable(fd.flush):
-      fd.flush()
+    pyjson.dump(data, fd, **kwargs)
+
