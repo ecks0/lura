@@ -3,8 +3,8 @@ from lura import logutils
 
 logutils.configure(
   package = __name__,
-  format = logutils.formats.daemon,
-  level = logging.WARN,
+  format = logutils.formats.hax,
+  level = logging.INFO,
 )
 
 del logging
