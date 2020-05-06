@@ -44,6 +44,9 @@ from typing import (
 #####
 ## handy values
 
+def getLogger(name: str) -> logging.Logger:
+  return logging.getLogger(name)
+
 ExcInfo = Union[Tuple[Type[BaseException], BaseException, TracebackType], Tuple[None, None, None]]
 
 # log format presets (these depend on ExtraInfoFilter)
@@ -296,5 +299,11 @@ class Configurator:
   def configure(self) -> None:
     logging.config.dictConfig(self.config)
 
-def configure(package: str, format: str, datefmt: str = None, level: int = logging.INFO):
+def configure(
+  package: str,
+  format: str = formats.hax,
+  datefmt: str = None,
+  level: int = logging.INFO
+) -> logging.Logger:
   Configurator(package, format, datefmt, level=level).configure()
+  return logging.getLogger(package)
