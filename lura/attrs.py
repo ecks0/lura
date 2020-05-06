@@ -30,6 +30,8 @@ class attr:
   '''
 
   __slots__ = ('__wrapped__',)
+  # we could use __dict__ but we don't always want to initialize a new one,
+  # e.g. when the user provides a backing dict. using a slot lets us choose.
 
   __wrapped__: MutableMapping
 
@@ -38,6 +40,7 @@ class attr:
     *args: Union[MutableMapping, 'attr'],
     **kwargs: Any
   ) -> None:
+
     super().__init__()
     if args and kwargs:
       raise ValueError('args and kwargs are mutually exclusive')
@@ -56,6 +59,13 @@ class attr:
     else:
       raise ValueError(f"Unsupported type '{type(src)}' for 'args[0]'")
     super().__setattr__('__wrapped__', wrapped)
+
+  @property
+  def __dict__(self) -> MutableMapping[Any, Any]:
+    'Return the wrapped dictionary.'
+    # works with e.g. vars()
+
+    return self.__wrapped__
 
   def __getattr__(self, name: str) -> Any:
     try:
