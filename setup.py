@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 name             = 'lura'
-version          = '0.4.7'
+version          = '0.5.0'
 author           = 'Nick Zigarovich'
 author_email     = 'nick@zigarovich.io'
 url              = 'https://github.com/ecks0/lura'
@@ -9,7 +9,7 @@ description      = 'a bag of tricks'
 python_requires  = '>= 3.6'
 install_requires = open('requirements.txt').read().strip().splitlines()
 packages         = find_packages()
-console_scripts  = ['fuga=lura.system.fuga:fuga']
+console_scripts  = []
 entry_points     = dict(console_scripts=console_scripts)
 zip_safe         = True
 long_description = open('README.md').read()
