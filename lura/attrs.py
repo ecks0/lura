@@ -31,7 +31,7 @@ class attr:
 
   __slots__ = ('__wrapped__',)
   # we could use __dict__ but we don't always want to initialize a new one,
-  # e.g. when the user provides a backing dict. using a slot lets us choose.
+  # e.g. when the user provides a backing dict. using a slot lets us choose
 
   __wrapped__: MutableMapping
 

@@ -10,7 +10,7 @@ successive calls.
 ### `run` callable object
 
 The `run` callable object executes commands in subprocesses and returns a
-`Result` object containing the exit code, stdout, stderr, and more.
+`RunResult` object containing the exit code, stdout, stderr, and more.
 
 `run()` accepts many arguments and is similar to Popen. See the `Run` class
 definition for details.
@@ -65,12 +65,12 @@ with sudo.password('myROOTpasswd'):
   res.print()
 ```
 
-### `Result` object
+### `RunResult` object
 
-`Result` is the return value of `run()` and `sudo()`.
+`RunResult` is the return value of `run()` and `sudo()`.
 
 ```
-class Result:
+class RunResult:
 
   args: str
   # argv as string
@@ -95,17 +95,17 @@ class Result:
   # if file is None
 ```
 
-### `Error` object
+### `RunError` object
 
-`Error` is raised when the subprocess exits with an unexpected exit code.
+`RunError` is raised when the subprocess exits with an unexpected exit code.
 The `run()` and `sudo()` arguments `enforce` and `enforce_code` control this
 behavior.
 
 ```
-class Error(RuntimeError):
+class RunError(RuntimeError):
 
-  result: Result
-  # Result instance describing failed run() call
+  result: RunResult
+  # RunResult instance describing failed run() call
 ```
 
 ### Context managers
@@ -113,7 +113,7 @@ class Error(RuntimeError):
 Context managers can be used to set arguments and/or combinations of arguments
 for successive calls to `run()` and `sudo()`.
 
-For example, the following `run()` call would normally raise `Error` for
+For example, the following `run()` call would normally raise `RunError` for
 non-zero exit code, but the `run.quash()` context manager disables enforcing
 of exit values (sets enforce=False for the duration of its context):
 
@@ -162,7 +162,7 @@ logger = logging.getLogger(__name__)
 #####
 ## run result and error
 
-class Result:
+class RunResult:
   'The value returned by `run()`.'
 
   args: str                  # argv as string
@@ -204,13 +204,14 @@ class Result:
     file = sys.stdout if file is None else file
     file.write(self.format())
 
-class Error(RuntimeError):
+class RunError(RuntimeError):
   'Raised by run() when a subprocess exits with an unexpected code.'
 
-  result: Result
+  result: RunResult
 
-  def __init__(self, enforce_code: int, result: Result) -> None:
-    super().__init__(f'Expected exit code {enforce_code} but received {result.code}')
+  def __init__(self, enforce_code: int, result: RunResult) -> None:
+    super().__init__(
+      f'Expected exit code {enforce_code} but received {result.code}: {result.args}')
     self.result = result
 
 #####
@@ -370,7 +371,7 @@ class Run:
     enforce_code: Optional[int] = None,
     text: Optional[bool] = None,
     encoding: Optional[str] = None,
-  ) -> Result:
+  ) -> RunResult:
     'Run a command in a subprocess.'
 
     # collect arguments passed by the caller
@@ -477,7 +478,7 @@ class Run:
       threads = []
 
       # prepare the result
-      result = Result(
+      result = RunResult(
         argv,
         code,
         out_buf.getvalue(),
@@ -486,7 +487,7 @@ class Run:
 
       # enforce process exit code
       if args.enforce and code != args.enforce_code:
-        raise Error(args.enforce_code, result)
+        raise RunError(args.enforce_code, result)
 
       # done
       return result
@@ -507,6 +508,48 @@ class Run:
       # cleanup proc
       if proc is not None:
         proc.kill()
+
+  def zero(
+    self,
+    argv: Union[str, Sequence[str]],
+    env: Optional[Mapping[str, str]] = None,
+    env_replace: Optional[bool] = None,
+    cwd: Optional[str] = None,
+    shell: Optional[bool] = None,
+    stdin: Optional[IO] = None,
+    stdout: Optional[Sequence[IO]] = None,
+    stderr: Optional[Sequence[IO]] = None,
+    text: Optional[bool] = None,
+    encoding: Optional[str] = None,
+  ) -> bool:
+    'Return True if argv exits with code 0, else False.'
+
+    result = self.__call__(
+      argv, env=env, env_replace=env_replace, cwd=cwd, shell=shell,
+      stdin=stdin, stdout=stdout, stderr=stderr, text=text, encoding=encoding,
+      enforce=False)
+    return result.code == 0
+
+  def nonzero(
+    self,
+    argv: Union[str, Sequence[str]],
+    env: Optional[Mapping[str, str]] = None,
+    env_replace: Optional[bool] = None,
+    cwd: Optional[str] = None,
+    shell: Optional[bool] = None,
+    stdin: Optional[IO] = None,
+    stdout: Optional[Sequence[IO]] = None,
+    stderr: Optional[Sequence[IO]] = None,
+    text: Optional[bool] = None,
+    encoding: Optional[str] = None,
+  ) -> bool:
+    'Return True if argv exits with a code other than zero, else False.'
+
+    result = self.__call__(
+      argv, env=env, env_replace=env_replace, cwd=cwd, shell=shell,
+      stdin=stdin, stdout=stdout, stderr=stderr, text=text, encoding=encoding,
+      enforce=False)
+    return result.code != 0
 
   @contextmanager
   def quash(self) -> Iterator[None]:
@@ -652,7 +695,7 @@ sys.stdout.flush()
     password: Optional[str] = None,
     login: Optional[bool] = None,
     preserve_env: Optional[bool] = None,
-  ) -> Result:
+  ) -> RunResult:
     'Run a command in a subprocess with sudo.'
 
     # collect arguments passed by the caller
@@ -737,6 +780,60 @@ sys.stdout.flush()
           stdin=stdin, stdout=stdout, stderr=stderr, enforce=enforce,
           enforce_code=enforce_code, text=text, encoding=encoding)
   
+  def zero(
+    self,
+    argv: Union[str, Sequence[str]],
+    env: Optional[Mapping[str, str]] = None,
+    env_replace: Optional[bool] = None,
+    cwd: Optional[str] = None,
+    shell: Optional[bool] = None,
+    stdin: Optional[IO] = None,
+    stdout: Optional[Sequence[IO]] = None,
+    stderr: Optional[Sequence[IO]] = None,
+    text: Optional[bool] = None,
+    encoding: Optional[str] = None,
+    user: Optional[str] = None,
+    group: Optional[str] = None,
+    password: Optional[str] = None,
+    login: Optional[bool] = None,
+    preserve_env: Optional[bool] = None,
+  ) -> bool:
+    'Return True if argv exits with code 0, else False.'
+
+    result = self.__call__(
+      argv, env=env, env_replace=env_replace, cwd=cwd, shell=shell,
+      stdin=stdin, stdout=stdout, stderr=stderr, text=text, encoding=encoding,
+      user=user, group=group, password=password, login=login,
+      preserve_env=preserve_env, enforce=False)
+    return result.code == 0
+
+  def nonzero(
+    self,
+    argv: Union[str, Sequence[str]],
+    env: Optional[Mapping[str, str]] = None,
+    env_replace: Optional[bool] = None,
+    cwd: Optional[str] = None,
+    shell: Optional[bool] = None,
+    stdin: Optional[IO] = None,
+    stdout: Optional[Sequence[IO]] = None,
+    stderr: Optional[Sequence[IO]] = None,
+    text: Optional[bool] = None,
+    encoding: Optional[str] = None,
+    user: Optional[str] = None,
+    group: Optional[str] = None,
+    password: Optional[str] = None,
+    login: Optional[bool] = None,
+    preserve_env: Optional[bool] = None,
+  ) -> bool:
+    'Return True if argv exits with a code other than zero, else False.'
+
+    result = self.__call__(
+      argv, env=env, env_replace=env_replace, cwd=cwd, shell=shell,
+      stdin=stdin, stdout=stdout, stderr=stderr, text=text, encoding=encoding,
+      user=user, group=group, password=password, login=login,
+      preserve_env=preserve_env, enforce=False)
+    return result.code != 0
+
   @contextmanager
   def user(self, user: str) -> Iterator[None]:
     'Run sudo commands as user while in this context.'
