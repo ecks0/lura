@@ -1,4 +1,4 @@
-from typing import Any, MutableMapping, Union
+from typing import Any, Dict, MutableMapping, TYPE_CHECKING, Union
 
 class attr:
   '''
@@ -60,12 +60,15 @@ class attr:
       raise ValueError(f"Unsupported type '{type(src)}' for 'args[0]'")
     super().__setattr__('__wrapped__', wrapped)
 
-  @property
-  def __dict__(self) -> MutableMapping[Any, Any]:
-    'Return the wrapped dictionary.'
-    # works with e.g. vars()
+  if TYPE_CHECKING:
+    __dict__: Dict[str, Any] = {}
+  else:
+    @property
+    def __dict__(self) -> Dict[str, Any]:
+      'Return the wrapped dictionary.'
 
-    return self.__wrapped__
+      # works with e.g. vars()
+      return self.__wrapped__
 
   def __getattr__(self, name: str) -> Any:
     try:

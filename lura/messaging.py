@@ -65,8 +65,7 @@ def discord(
   if subtitle:
     embed.description = subtitle
   if fields:
-    fields = [{'name': n, 'value': v} for (n, v) in fields.items()]
-    embed.fields = fields
+    embed.fields = [{'name': n, 'value': v} for (n, v) in fields.items()]
   if summary:
     embed.footer = {'text': summary}
   payload = {'embeds': [embed]}
@@ -93,6 +92,10 @@ class Messenger:
 
   # how long will we block in queue.get() before giving up
   _queue_get_timeout = 5
+
+  _pulse: float
+  _queue: queue.Queue
+  _working: bool
 
   def __init__(
     self,

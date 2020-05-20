@@ -189,7 +189,7 @@ def build_log_method(number) -> Callable:
       self._log(*args, **kwargs)
   return log_method
 
-def add_level(name: str, number: int, char: str = None) -> None:
+def add_level(name: str, number: int, char: Optional[str] = None) -> None:
   '''
   Add a log level.
 
@@ -215,7 +215,7 @@ def add_level(name: str, number: int, char: str = None) -> None:
   setattr(Logger, name, number)
   setattr(Logger, name.lower(), build_log_method(number))
   if char is not None:
-    ExtraInfoFilter.name_to_char[name] = char
+    ExtraInfoFilter.name_to_char[number] = char
 
 #####
 ## application-level configurator
@@ -243,11 +243,18 @@ class Configurator:
   datefmt: str
   level: int
 
-  def __init__(self, package: str, format: str, datefmt: str, level: int = logging.INFO):
+  def __init__(
+    self,
+    package: str,
+    format: str,
+    datefmt: str,
+    level: int = logging.INFO
+  ) -> None:
+
     super().__init__()
     self.package = package
     self.format = format
-    self.datefmt = datefmt or default_datefmt
+    self.datefmt = datefmt
     self.level = level
 
   @property
@@ -302,7 +309,7 @@ class Configurator:
 def configure(
   package: str,
   format: str = formats.hax,
-  datefmt: str = None,
+  datefmt: str = default_datefmt,
   level: int = logging.INFO
 ) -> logging.Logger:
   Configurator(package, format, datefmt, level=level).configure()

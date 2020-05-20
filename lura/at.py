@@ -32,14 +32,12 @@ import logging
 import schedule as pyschedule # type: ignore
 import threading
 from lura.threads import Thread
+from schedule import every
 from time import sleep
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
 from typing_extensions import Protocol
 
 logger = logging.getLogger(__name__)
-
-def every() -> pyschedule.Job:
-  return pyschedule.every()
 
 class Task(Protocol):
   'Task protocol for use with `Scheduler`.'
@@ -78,7 +76,7 @@ class _Task:
   ) -> None:
 
     super().__init__()
-    self._target = target
+    self._target = target # type: ignore
     self._args = []
     if args is not None:
       self._args.extend(args)
@@ -91,7 +89,7 @@ class _Task:
       #   before a previous invocation has finished
       # - a task is not reentrant when only one invocation of the task may
       #   run at a time
-      self._lock = threading.Lock
+      self._lock = threading.Lock()
     self._name = f'{self._target.__module__}.{self._target.__name__}'
 
   @property

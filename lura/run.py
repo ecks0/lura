@@ -153,8 +153,8 @@ from lura.fs import TempDir
 from lura.threads import Thread
 from subprocess import list2cmdline as shjoin
 from typing import (
-  Any, Callable, IO, Iterator, Mapping, Optional, Sequence, TextIO, Tuple,
-  Type, Union, cast
+  Any, Callable, IO, Iterator, Mapping, MutableSequence, Optional, Sequence,
+  TextIO, Tuple, Type, Union, cast
 )
 
 logger = logging.getLogger(__name__)
@@ -175,8 +175,8 @@ class RunResult:
     self,
     argv: Union[str, Sequence[str]],
     code: int,
-    stdout: str,
-    stderr: str,
+    stdout: Union[bytes, str],
+    stderr: Union[bytes, str],
   ) -> None:
 
     super().__init__()
@@ -411,8 +411,8 @@ class Run:
       args.env = env
 
     # setup i/o
-    out_buf: IO
-    err_buf: IO
+    out_buf: Union[io.StringIO, io.BytesIO]
+    err_buf: Union[io.StringIO, io.BytesIO]
 
     if args.text:
       if not args.encoding:
@@ -452,8 +452,8 @@ class Run:
 
       # spawn stdout/stderr reader threads
       threads = [
-        Tee.spawn(proc.stdout, stdouts, name=f'Tee <{argv[0]} stdout>'),
-        Tee.spawn(proc.stderr, stderrs, name=f'Tee <{argv[0]} stderr>'),
+        cast(Tee, Tee.spawn(proc.stdout, stdouts, name=f'Tee <{argv[0]} stdout>')),
+        cast(Tee, Tee.spawn(proc.stderr, stderrs, name=f'Tee <{argv[0]} stderr>')),
       ]
 
       # await the process exit code while allowing execution to return to the
@@ -723,7 +723,7 @@ sys.stdout.flush()
       argv = shlex.split(argv)
 
     # build the sudo argv
-    sudo_argv: Sequence[str] = ['sudo']
+    sudo_argv: MutableSequence[str] = ['sudo']
     if args.user is not None:
       sudo_argv.append('-u')
       sudo_argv.append(args.user)

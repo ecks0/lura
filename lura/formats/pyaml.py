@@ -1,5 +1,5 @@
 import io
-import pyaml
+import pyaml # type: ignore
 from enum import Enum
 from typing import Any, Optional, TextIO
 

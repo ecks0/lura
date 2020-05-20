@@ -1,11 +1,11 @@
 'Remote procedure calls using rpyc.'
 
 import logging
-import rpyc
-from rpyc.core.protocol import Connection
-from rpyc.core.service import SlaveService
-from rpyc.utils.authenticators import SSLAuthenticator
-from rpyc.utils.server import ThreadedServer
+import rpyc # type: ignore
+from rpyc.core.protocol import Connection # type: ignore
+from rpyc.core.service import SlaveService # type: ignore
+from rpyc.utils.authenticators import SSLAuthenticator # type: ignore
+from rpyc.utils.server import ThreadedServer # type: ignore
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
