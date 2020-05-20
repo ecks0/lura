@@ -1,183 +1,219 @@
-'''
-Send messages to e.g. ms-teams or discord.
+'Send messages to e.g. Teams or Discord.'
 
-This is a simple api that can accommodate multiple messaging services.
-
-There's also `Messenger` class that will queue outgoing and send messages
-on a schedule as to not trigger flood protection on your webhooks.
-'''
-
+import json
 import logging
 import queue
 import requests
 from lura.attrs import attr
-from lura.formats import Json
-from lura.time import poll
+from lura.utils import format_exc_info
+from lura.threads import Thread
 from time import sleep
-from typing import Mapping, Optional, Sequence, cast
+from typing import Any, Mapping, Optional, Sequence, cast
+from typing_extensions import Protocol
 
 logger = logging.getLogger(__name__)
 
-def teams(
-  webhook: str,
-  title: Optional[str] = None,
-  subtitle: Optional[str] = None,
-  summary: Optional[str] = None,
-  fields: Mapping[str, str] = {},
-  timeout: float = 20.0
-) -> Optional[requests.Response]:
-  'Send a message to MS Teams.'
+class Message:
 
-  payload = {
-    '@type': 'MessageCard',
-    '@context': 'http://schema.org/extensions',
-    'summary': summary or '', # XXX what does this actually do?
-    'sections': [
-      {
-        'activityTitle': title or '',
-        'activitySubtitle': subtitle or '',
-        'facts': [{'name': n, 'value': v} for (n, v) in fields.items()]
-      }
-    ]
-  }
-  headers = {'Content-Type': 'application/json'}
-  res = requests.post(
-    webhook, headers=headers, data=Json().dumps(payload), timeout=timeout)
-  try:
+  title: Optional[str]
+  subtitle: Optional[str]
+  summary: Optional[str]
+  fields: Optional[Mapping[str, str]]
+
+  def __init__(
+    self,
+    title: Optional[str] = None,
+    subtitle: Optional[str] = None,
+    summary: Optional[str] = None,
+    fields: Optional[Mapping[str, str]] = None,
+  ) -> None:
+  
+    super().__init__()
+    self.title = title
+    self.subtitle = subtitle
+    self.summary = summary
+    self.fields = fields
+
+class Service(Protocol):
+
+  def __init__(
+    self,
+    webhook: str,
+    timeout: float,
+    **kwargs: Any
+  ) -> None:
+
+    ...
+
+  def send(
+    self,
+    message: Message,
+    **kwargs: Any
+  ) -> None:
+
+    ...
+
+class Teams:
+  'Send messages to Microsoft Teams.'
+
+  _webhook: str
+  _timeout: float
+
+  def __init__(
+    self,
+    webhook: str,
+    timeout: float = 20.0,
+    **kwargs: Any
+  ) -> None:
+
+    super().__init__()
+    self._webhook = webhook
+    self._timeout = timeout
+
+  def send(
+    self,
+    message: Message,
+    **kwargs: Any
+  ) -> None:
+    'Send messages to Microsoft Teams.'
+
+    payload = {
+      '@type': 'MessageCard',
+      '@context': 'http://schema.org/extensions',
+      'summary': message.summary or '', # XXX what does this actually do?
+      'sections': [
+        {
+          'activityTitle': message.title or '',
+          'activitySubtitle': message.subtitle or '',
+          'facts': [
+            {'name': n, 'value': v} for (n, v) in (message.fields or {}).items()
+          ],
+        }]}
+    res = requests.post(
+      self._webhook,
+      headers = {'Content-Type': 'application/json'},
+      data = json.dumps(payload),
+      timeout = self._timeout
+    )
     res.raise_for_status()
-    return None
-  except requests.exceptions.HTTPError:
-    return res
 
-def discord(
-  webhook: str,
-  title: Optional[str] = None,
-  subtitle: Optional[str] = None,
-  summary: Optional[str] = None,
-  fields: Mapping[str, str] = {},
-  timeout: float = 20.0,
-) -> Optional[requests.Response]:
-  'Send a message to Discord.'
+class Discord:
+  'Send messages to Discord.'
 
-  embed = attr()
-  if title:
-    embed.title = title
-  if subtitle:
-    embed.description = subtitle
-  if fields:
-    embed.fields = [{'name': n, 'value': v} for (n, v) in fields.items()]
-  if summary:
-    embed.footer = {'text': summary}
-  payload = {'embeds': [embed]}
-  headers = {'Content-Type': 'application/json'}
-  res = requests.post(
-    webhook, headers=headers, data=Json().dumps(payload), timeout=timeout)
-  try:
+  _webhook: str
+  _timeout: float
+
+  def __init__(
+    self,
+    webhook: str,
+    timeout: float = 20.0,
+    **kwargs: Any
+  ) -> None:
+
+    super().__init__()
+    self._webhook = webhook
+    self._timeout = timeout
+
+  def send(
+    self,
+    message: Message,
+    **kwargs: Any
+  ) -> None:
+    'Send messages to Discord.'
+
+    embed = attr()
+    if message.title:
+      embed.title = message.title
+    if message.subtitle:
+      embed.description = message.subtitle
+    if message.fields:
+      embed.fields = [{'name': n, 'value': v} for (n, v) in message.fields.items()]
+    if message.summary:
+      embed.footer = {'text': message.summary}
+    payload = {'embeds': [vars(embed)]}
+    res = requests.post(
+      self._webhook,
+      headers = {'Content-Type': 'application/json'},
+      data = json.dumps(payload),
+      timeout = self._timeout,
+    )
     res.raise_for_status()
-    return None
-  except requests.exceptions.HTTPError:
-    return res
 
 class Messenger:
-  '''
-  Queues messages for teams and discord and sends them a regular interval so
-  as to not trigger flood protection.
-  
-  Create an instance and call `start()` to execute the main loop.
-  '''
+  'Queue and send messages at a regular interval.'
 
   log_level = logging.INFO
 
-  _senders = {'teams': teams, 'discord': discord}
-
   # how long will we block in queue.get() before giving up
-  _queue_get_timeout = 5
+  queue_get_timeout: float = 1.3
 
-  _pulse: float
+  # how long to sleep after successfully sending a message
+  send_sleep_interval: float = 3.5
+
+  _services: Sequence[Service]
   _queue: queue.Queue
   _working: bool
 
   def __init__(
     self,
-    teams_webhook: Optional[Sequence[str]] = None,
-    discord_webhook: Optional[Sequence[str]] = None,
-    pulse: float = 4.0
+    services: Sequence[Service],
   ) -> None:
+
     super().__init__()
-    self._webhooks = {
-      'teams': teams_webhook,
-      'discord': discord_webhook,
-    }
-    self._pulse = pulse
+    self._services = services
     self._queue = queue.Queue()
     self._working = False
 
-  def is_idle(self):
-    return self._queue.empty()
+  def send(
+    self,
+    message: Message,
+    **kwargs
+  ) -> None:
+    'Queue a message to be sent.'
 
-  idle = property(is_idle)
+    if not self._working:
+      raise RuntimeError('Not started')
+    self._queue.put((message, kwargs))
 
-  def wait_for_idle(self, timeout):
-    return poll(self.is_idle, timeout=timeout, pause=1)
-
-  def send(self, **kwargs):
-    self._queue.put(kwargs)
-
-  def _send(self, kwargs):
-    'Send the message with all configured services.'
-
-    log = logger[self.log_level] # type: ignore
-    sent = False
-    for service in 'teams', 'discord':
-      webhook = self._webhooks[service]
-      if not webhook:
-        continue
-      send = self._senders[service]
-      try:
-        res = send(webhook, **kwargs)
-        if res is None:
-          sent = True
-      except Exception:
-        log(f'Unhandled exception for {service} message', exc_info=True)
-    return sent
-
-  def _work(self):
-    'Get a set of kwargs from the queue and try to send them.'
-
+  def _dequeue(self) -> None:
     try:
-      kwargs = self._queue.get(block=True, timeout=self._queue_get_timeout)
+      message, kwargs = self._queue.get(block=True, timeout=self.queue_get_timeout)
     except queue.Empty:
       return
-    try:
-      sent = self._send(kwargs)
-    finally:
-      self._queue.task_done()
-    if sent:
-      sleep(self._pulse)
+    log = logger[self.log_level] # type: ignore
+    threads = [
+      Thread.spawn(
+        target=svc.send, args=(message,), kwargs=kwargs, name=type(svc).__name__)
+      for svc in self._services
+    ]
+    for thread in threads:
+      thread.join()
+      if thread.error:
+        log(f'Unhandled exception sending message for {thread.name}:')
+        log(format_exc_info(thread.error, prefix='  '))
+    self._queue.task_done()
+    sleep(self.send_sleep_interval)
 
-  def _loop(self):
-    'Run the work loop.'
-
-    while self._working:
-      self._work()
-
-  def run(self):
-    'Main entry point for the messaging work loop.'
+  def start(self) -> None:
+    'Run the messenger queue loop.'
 
     log = logger[self.log_level] # type: ignore
     self._working = True
-    log('Messenger starting')
     try:
-      self._loop()
-    except Exception:
-      log(f'Unhandled exception in messenger', exc_info=True)
-      raise
+      log('Messenger starting')
+      while self._working:
+        self._dequeue()
+      if not self._queue.empty():
+        log(f'Shutdown, sending {self._queue.qsize()} pending messages...')
+        while not self._queue.empty():
+          self._dequeue()
     finally:
       log('Messenger stopping')
 
-  start = run
-
-  def stop(self):
-    'Break the work loop.'
+  def stop(self) -> None:
+    '''
+    Stop sending messages. New messages via `send()` will not be accepted.
+    Pending messages will be sent before the queue loop exits.
+    '''
 
     self._working = False
