@@ -58,3 +58,4 @@ class Format(Protocol):
 
 from .json import Json
 from .pyaml import Pyaml
+from .yaml import Yaml

@@ -66,8 +66,8 @@ class attr:
     @property
     def __dict__(self) -> Dict[str, Any]:
       'Return the wrapped dictionary.'
-
       # works with e.g. vars()
+
       return self.__wrapped__
 
   def __getattr__(self, name: str) -> Any:
