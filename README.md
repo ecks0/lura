@@ -6,6 +6,7 @@
 | `at`             | api for periodic task scheduling using `schedule`                          |
 | `attrs`          | `dict`s with keys accessible as attributes                                 |
 | `click`          | click helpers                                                              |
+| `expanders`      | api for expanding templates with jinja2, etc.                              |
 | `formats`        | api for dealing with json, yaml, csv, etc.                                 |
 | `fs`             | filesystem helpers                                                         |
 | `hash`           | syntactic sugar for hashlib                                                |
