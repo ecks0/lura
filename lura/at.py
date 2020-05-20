@@ -39,26 +39,7 @@ from typing_extensions import Protocol
 
 logger = logging.getLogger(__name__)
 
-class Task(Protocol):
-  'Task protocol for use with `Scheduler`.'
-
-  def __init__(
-    self,
-    target: Callable,
-    args: Optional[Sequence[Any]],
-    kwargs: Optional[Mapping[Any, Any]],
-    reenter: bool,
-  ) -> None:
-    ...
-
-  @property
-  def name(self) -> str:
-    return ''
-
-  def run(self) -> None:
-    ...
-
-class _Task:
+class Task:
   'Run a scheduled task in a thread.'
 
   _target: Callable
@@ -70,19 +51,15 @@ class _Task:
   def __init__(
     self,
     target: Callable,
-    args: Optional[Sequence[Any]],
-    kwargs: Optional[Mapping[Any, Any]],
-    reenter: bool,
+    args: Sequence[Any] = (),
+    kwargs: Mapping[str, Any] = {},
+    reenter: bool = True,
   ) -> None:
 
     super().__init__()
     self._target = target # type: ignore
-    self._args = []
-    if args is not None:
-      self._args.extend(args)
-    self._kwargs = {}
-    if kwargs is not None:
-      self._kwargs.update(kwargs)
+    self._args = args
+    self._kwargs = kwargs
     self._lock = None
     if not reenter:
       # - a task is reentrant when a new invocation of the task may be started
@@ -90,15 +67,14 @@ class _Task:
       # - a task is not reentrant when only one invocation of the task may
       #   run at a time
       self._lock = threading.Lock()
-    self._name = f'{self._target.__module__}.{self._target.__name__}'
+    if hasattr(self._target, '__name__'):
+      self._name = f'{self._target.__module__}.{self._target.__name__}'
+    else:
+      self._name = repr(self._target)
 
   @property
   def name(self) -> str:
     return self._name
-
-  def run(self) -> None:
-    cls_name = f'{type(self).__module__}.{type(self).__name__}'
-    Thread.spawn(target=self._work, name=f'{cls_name} <{self.name}>')
 
   def _work(self) -> None:
     log = logger[self.log_level] # type: ignore
@@ -116,11 +92,14 @@ class _Task:
         self._lock.release()
       log(f'Finished scheduled task: {self.name}')
 
+  def run(self) -> None:
+    cls_name = f'{type(self).__module__}.{type(self).__name__}'
+    Thread.spawn(target=self._work, name=f'{cls_name} {self.name}')
+
 class Scheduler:
   'Periodic task scheduler.'
 
   log_level = logging.INFO
-  task_cls: Type[Task] = _Task
 
   _working: bool
 
@@ -151,8 +130,8 @@ class Scheduler:
         unit = job.unit[:-1] if job.interval == 1 else job.unit,
       )
 
-  def _work(self) -> None:
-    'Scheduler main loop.'
+  def start(self) -> None:
+    'Run the scheduler main loop.'
 
     if self._working:
       raise RuntimeError('Already working')
@@ -171,23 +150,22 @@ class Scheduler:
       self._working = False
       log('Task scheduler stopped')
 
-  def start(self) -> None:
-    self._work()
-
   def stop(self) -> None:
+    'Stop the scheduler main loop.'
+
     self._working = False
 
   def schedule(
     self,
     job: pyschedule.Job, 
     target: Callable,
-    args: Optional[Sequence[Any]] = None,
-    kwargs: Optional[Mapping[str, Any]] = None,
+    args: Sequence[Any] = (),
+    kwargs: Mapping[str, Any] = {},
     reenter: bool = True,
   ) -> None:
     'Schedule a task.'
 
-    task = self.task_cls(target=target, args=args, kwargs=kwargs, reenter=reenter)
     log = logger[self.log_level] # type: ignore
+    task = Task(target=target, args=args, kwargs=kwargs, reenter=reenter)
     log(f'Scheduling {self._format_task(job, task)}')
     job.do(task.run)
