@@ -1,4 +1,4 @@
-'Send messages to e.g. Teams or Discord.'
+'Send messages to messaging services, e.g. Teams or Discord.'
 
 import json
 import logging
@@ -8,7 +8,7 @@ from lura.attrs import attr
 from lura.utils import format_exc_info
 from lura.threads import Thread
 from time import sleep
-from typing import Any, Mapping, Optional, Sequence, cast
+from typing import Any, Mapping, Optional, Sequence
 from typing_extensions import Protocol
 
 logger = logging.getLogger(__name__)

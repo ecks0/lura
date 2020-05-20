@@ -21,7 +21,7 @@ scheduler.start()
 ```
 '''
 
-# the `schedule` module from pypi does the hard work for us. the at module:
+# the `schedule` module from pypi does the hard work for us. the `at` module:
 #
 # - provides a main loop which tries to keep the scheduler running in spite of
 #   unhandled exceptions
@@ -30,12 +30,11 @@ scheduler.start()
 
 import logging
 import schedule as pyschedule # type: ignore
-import threading
 from lura.threads import Thread
 from schedule import every
+from threading import Lock
 from time import sleep
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
-from typing_extensions import Protocol
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class Task:
   _target: Callable
   _args: Sequence[Any]
   _kwargs: Mapping[str, Any]
-  _lock: Optional[threading.Lock]
+  _lock: Optional[Lock]
   _name: str
 
   def __init__(
@@ -66,7 +65,7 @@ class Task:
       #   before a previous invocation has finished
       # - a task is not reentrant when only one invocation of the task may
       #   run at a time
-      self._lock = threading.Lock()
+      self._lock = Lock()
     if hasattr(self._target, '__name__'):
       self._name = f'{self._target.__module__}.{self._target.__name__}'
     else:
