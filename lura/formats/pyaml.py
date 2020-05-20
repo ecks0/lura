@@ -68,3 +68,7 @@ class Pyaml:
   ) -> None:
   
     pyaml.p(data, file=fd, sort_dicts=False)
+
+  def print(self, data: Any, **kwargs) -> None:
+    kwargs.setdefault('end', '')
+    print(self.dumps(data), **kwargs)
