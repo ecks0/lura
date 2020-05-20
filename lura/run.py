@@ -343,8 +343,8 @@ class RunContext(threading.local):
 class Run:
   'Run commands in subprocesses.'
 
-  # maximum amount of time in seconds to spend polling for a process's exit code
-  # before allowing execution to return to the interpreter
+  # maximum amount of time in seconds to spend polling for a process's exit
+  # code before allowing execution to return to the interpreter
   PROCESS_POLL_INTERVAL = 1.0
 
   # maximum amount of time in seconds to wait for stdio threads to join before
